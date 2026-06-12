@@ -156,6 +156,27 @@ Each entry can override the global `--mode`, `--pixel`, `--vol`, and `--cols` de
 ```
 Video paths are resolved automatically — the engine checks the project root and the `videos/` subfolder, so you can write just the filename.
 
+## Static GitHub Pages build
+
+The `static/` folder is a **zero-backend** version that runs entirely in the browser (ASCII modes 1–5 + Pixel). No Python, WebSocket, or FFmpeg required.
+
+### Local preview
+
+```bash
+cd static
+python3 -m http.server 8080
+# open http://localhost:8080
+```
+
+Place your demo video at `static/videos/fg.mp4` (or edit `static/config.json`). The bundled `fg.mp4` is allowed in git via `.gitignore` exception.
+
+### Deploy to GitHub Pages
+
+1. One-time: GitHub → **Settings → Pages** → Source: **GitHub Actions**
+2. Push to `main` (or merge branch `static-github-pages`) — the workflow in `.github/workflows/deploy-pages.yml` publishes `static/` automatically.
+
+**Performance:** ASCII mode 3 @ 220 cols and Pixel @ 400 cols work well on modern hardware. Color modes 4–5 at high resolution may drop frames — lower `cols` in `config.json` if needed.
+
 ## 📜 License & Ethical Guardrails
 
 **MIT License (with Anti-Ad Restriction)**

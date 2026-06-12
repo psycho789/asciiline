@@ -11,6 +11,10 @@ __pycache__/
 *.mkv
 *.webm
 
+# Demo video for static GitHub Pages site
+!static/videos/
+!static/videos/fg.mp4
+
 # Environment & IDE
 .env
 .vscode/
