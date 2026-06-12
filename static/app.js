@@ -24,6 +24,15 @@ const PALETTE_LEN = PALETTE.length;
 const QB_MAP = { 5: 0, 4: 2, 3: 3, 2: 5 };
 const CORRUPT_CHARS = '$#@!?0123456789ABCDEF';
 const WAVE_CHARS = '~\\/-|';
+const AUTO_RIPPLE_CHAR_SETS = [
+    '~\\/-|',
+    '*+.`',
+    '#@!$%',
+    '><^v',
+    '()[]{',
+    'xX+=-',
+];
+const AUTO_RIPPLE_PATTERNS = ['nova', 'scatter', 'sweep', 'rain', 'quake', 'converge', 'chain', 'supernova'];
 const DOT_CHAR = 0xb7; // ·
 const BLOCK_CHAR = 0x2588; // █
 
@@ -161,6 +170,15 @@ const FX_PRESETS = {
         pixelOk: true,
         interactive: true,
     },
+    'auto-ripple': {
+        label: 'GHOST',
+        tip: 'Autonomous ripple engine',
+        hint: 'Random patterns — nova bursts, scatter shots, chain blasts, quakes — fire on their own schedule.',
+        action: 'Click the player to add your own ripples to the chaos.',
+        css: 'fx-ripple fx-auto-ripple',
+        asciiOnly: true,
+        interactive: true,
+    },
 };
 
 const CHAR_LUT = new Array(256);
@@ -206,6 +224,9 @@ let prevChars = null;
 let corruptZones = [];
 let nextCorruptAt = 0;
 let ripples = [];
+let autoRipplePendingFires = [];
+let autoRippleNextAt = 0;
+let autoRipplePatternCursor = 0;
 let audioCtx = null;
 let analyser = null;
 let audioSource = null;
@@ -236,6 +257,8 @@ function resetFxState() {
     corruptZones = [];
     nextCorruptAt = performance.now() + 600;
     ripples = [];
+    autoRipplePendingFires = [];
+    autoRippleNextAt = 0;
     frameParity = 0;
     pixelHold = null;
     if (gridCols > 0 && gridRows > 0) {
@@ -470,18 +493,141 @@ function applyCorrupt(charCode, row, col) {
 }
 
 function rippleOverride(charCode, col, row, now) {
-    if (effectiveFx() !== 'ripple') return charCode;
-    ripples = ripples.filter((r) => now - r.startTime < 500);
+    const fx = effectiveFx();
+    if (fx !== 'ripple' && fx !== 'auto-ripple') return charCode;
+    ripples = ripples.filter((r) => now - r.startTime < (r.duration ?? 500));
     for (const rip of ripples) {
         const age = now - rip.startTime;
         const dist = Math.hypot(col - rip.col, row - rip.row);
-        const waveFront = age * 0.12;
-        if (Math.abs(dist - waveFront) < 1.8) {
-            const phase = Math.floor((dist - waveFront) * 4) % WAVE_CHARS.length;
-            return WAVE_CHARS.charCodeAt(phase);
+        const speed = rip.speed ?? 0.12;
+        const width = rip.width ?? 1.8;
+        const waveFront = age * speed;
+        if (Math.abs(dist - waveFront) < width) {
+            const chars = rip.charSet || WAVE_CHARS;
+            const phase = ((Math.floor((dist - waveFront) * 4)) % chars.length + chars.length) % chars.length;
+            return chars.charCodeAt(phase);
         }
     }
     return charCode;
+}
+
+function fireRippleAt(col, row, now, opts) {
+    ripples.push({
+        col: Math.max(0, Math.min(gridCols - 1, Math.round(col))),
+        row: Math.max(0, Math.min(gridRows - 1, Math.round(row))),
+        startTime: now,
+        speed: opts?.speed ?? 0.12,
+        duration: opts?.duration ?? 500,
+        width: opts?.width ?? 1.8,
+        charSet: opts?.charSet ?? WAVE_CHARS,
+    });
+}
+
+function scheduleAutoRipplePattern(now) {
+    if (gridCols === 0 || gridRows === 0) return;
+    const pattern = AUTO_RIPPLE_PATTERNS[autoRipplePatternCursor % AUTO_RIPPLE_PATTERNS.length];
+    autoRipplePatternCursor++;
+
+    const rndCol = () => 1 + Math.floor(Math.random() * (gridCols - 2));
+    const rndRow = () => 1 + Math.floor(Math.random() * (gridRows - 2));
+    const rndCs = () => AUTO_RIPPLE_CHAR_SETS[Math.floor(Math.random() * AUTO_RIPPLE_CHAR_SETS.length)];
+    const rndSpd = () => 0.06 + Math.random() * 0.22;
+    const rndW = () => 1.0 + Math.random() * 2.5;
+
+    const queue = autoRipplePendingFires;
+
+    switch (pattern) {
+        case 'nova':
+            queue.push({ fireAt: now, col: rndCol(), row: rndRow(), speed: 0.18 + Math.random() * 0.12, duration: 700, width: 2.5 + Math.random() * 1.5, charSet: rndCs() });
+            break;
+
+        case 'scatter': {
+            const count = 5 + Math.floor(Math.random() * 7);
+            for (let i = 0; i < count; i++) queue.push({ fireAt: now, col: rndCol(), row: rndRow(), speed: rndSpd(), duration: 400 + Math.random() * 400, width: rndW(), charSet: rndCs() });
+            break;
+        }
+
+        case 'sweep': {
+            const vertical = Math.random() < 0.5;
+            const fixed = vertical ? rndCol() : rndRow();
+            const count = 8 + Math.floor(Math.random() * 6);
+            const cs = rndCs();
+            for (let i = 0; i < count; i++) {
+                const pos = Math.floor((i / count) * (vertical ? gridRows : gridCols));
+                queue.push({ fireAt: now + i * 65, col: vertical ? fixed : pos, row: vertical ? pos : fixed, speed: rndSpd(), duration: 500, width: 1.5, charSet: cs });
+            }
+            break;
+        }
+
+        case 'rain': {
+            const count = 12 + Math.floor(Math.random() * 12);
+            for (let i = 0; i < count; i++) queue.push({ fireAt: now + i * 110 + Math.random() * 55, col: rndCol(), row: rndRow(), speed: 0.06 + Math.random() * 0.08, duration: 350, width: 1.2, charSet: '~`.' });
+            break;
+        }
+
+        case 'quake': {
+            const ec = rndCol();
+            const er = rndRow();
+            const count = 12 + Math.floor(Math.random() * 10);
+            for (let i = 0; i < count; i++) queue.push({ fireAt: now + Math.random() * 450, col: ec + Math.round((Math.random() - 0.5) * 10), row: er + Math.round((Math.random() - 0.5) * 6), speed: rndSpd(), duration: 300 + Math.random() * 300, width: 1.0 + Math.random() * 1.5, charSet: '#@!$%' });
+            break;
+        }
+
+        case 'converge': {
+            const corners = [
+                { col: 1, row: 1 },
+                { col: gridCols - 2, row: 1 },
+                { col: 1, row: gridRows - 2 },
+                { col: gridCols - 2, row: gridRows - 2 },
+            ];
+            const cs = rndCs();
+            corners.forEach((pt, i) => queue.push({ fireAt: now + i * 45, col: pt.col, row: pt.row, speed: 0.14 + Math.random() * 0.06, duration: 650, width: 2.0, charSet: cs }));
+            break;
+        }
+
+        case 'chain': {
+            const oc = rndCol();
+            const or_ = rndRow();
+            queue.push({ fireAt: now, col: oc, row: or_, speed: 0.22, duration: 450, width: 2.8, charSet: AUTO_RIPPLE_CHAR_SETS[0] });
+            for (let i = 0; i < 6; i++) {
+                const ang = (i / 6) * Math.PI * 2;
+                queue.push({ fireAt: now + 300, col: oc + Math.round(Math.cos(ang) * 12), row: or_ + Math.round(Math.sin(ang) * 7), speed: rndSpd(), duration: 420, width: rndW(), charSet: rndCs() });
+            }
+            for (let i = 0; i < 12; i++) {
+                const ang = (i / 12) * Math.PI * 2;
+                queue.push({ fireAt: now + 600, col: oc + Math.round(Math.cos(ang) * 22), row: or_ + Math.round(Math.sin(ang) * 13), speed: rndSpd(), duration: 380, width: rndW(), charSet: rndCs() });
+            }
+            break;
+        }
+
+        case 'supernova': {
+            const sc = rndCol();
+            const sr = rndRow();
+            for (let i = 0; i < 5; i++) queue.push({ fireAt: now + i * 90, col: sc, row: sr, speed: 0.10 + i * 0.06, duration: 650, width: 1.8 + i * 0.6, charSet: AUTO_RIPPLE_CHAR_SETS[i % AUTO_RIPPLE_CHAR_SETS.length] });
+            break;
+        }
+    }
+}
+
+function tickAutoRipple(now) {
+    if (effectiveFx() !== 'auto-ripple' || state !== 'PLAYING' || pixelMode) return;
+    if (gridCols === 0 || gridRows === 0) return;
+
+    let i = 0;
+    while (i < autoRipplePendingFires.length) {
+        const entry = autoRipplePendingFires[i];
+        if (now >= entry.fireAt) {
+            fireRippleAt(entry.col, entry.row, now, entry);
+            autoRipplePendingFires.splice(i, 1);
+        } else {
+            i++;
+        }
+    }
+
+    if (autoRipplePendingFires.length === 0 && now >= autoRippleNextAt) {
+        scheduleAutoRipplePattern(now);
+        autoRippleNextAt = now + 1000 + Math.random() * 2800;
+    }
 }
 
 function pickCharFromGray(gray) {
@@ -950,6 +1096,7 @@ function processFrame(now) {
     frameParity = 1 - frameParity;
     updateAudioEnergy();
     updateCorrupt(now);
+    tickAutoRipple(now);
 
     if (pixelMode) {
         renderPixelFrame(now);
@@ -1150,11 +1297,13 @@ overlay.addEventListener('click', (e) => {
 });
 
 container.addEventListener('pointerdown', (e) => {
-    if (state !== 'PLAYING' || pixelMode || effectiveFx() !== 'ripple') return;
+    if (state !== 'PLAYING' || pixelMode) return;
+    const fx = effectiveFx();
+    if (fx !== 'ripple' && fx !== 'auto-ripple') return;
     if (e.target.closest('#play-overlay')) return;
     const { col, row } = pointerToGrid(e.clientX, e.clientY);
     if (col < 0 || col >= gridCols || row < 0 || row >= gridRows) return;
-    ripples.push({ col, row, startTime: performance.now() });
+    fireRippleAt(col, row, performance.now(), {});
     container.setPointerCapture(e.pointerId);
 });
 

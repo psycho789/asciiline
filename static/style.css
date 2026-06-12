@@ -155,7 +155,8 @@ body {
     cursor: text;
 }
 
-#player-container.fx-ripple {
+#player-container.fx-ripple,
+#player-container.fx-auto-ripple {
     cursor: crosshair;
 }
 
