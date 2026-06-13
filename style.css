@@ -642,12 +642,58 @@ body {
 }
 
 /* ── FX GRID ─────────────────────────── */
+.studio-audio-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--deck-border);
+    background: rgba(0, 243, 255, 0.02);
+}
+
+.studio-audio-bar-label {
+    flex-shrink: 0;
+    font-family: var(--font-tech);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #686878;
+    min-width: 36px;
+}
+
+.studio-audio-controls {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.studio-audio-controls .fx-ctrl-row {
+    margin: 2px 0;
+}
+
+.studio-audio-controls .fx-ctrl-label {
+    min-width: 44px;
+    font-size: 10px;
+}
+
+.studio-audio-controls .fx-ctrl-val {
+    min-width: 32px;
+    font-size: 10px;
+}
+
 .fx-grid-wrap {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 6px 10px 12px;
     border-top: 1px solid var(--deck-border);
+    display: flex;
+    flex-direction: column;
 }
 
 .fx-rail-head {

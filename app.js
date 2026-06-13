@@ -33,6 +33,7 @@ const timeDurationEl = document.getElementById('time-duration');
 const fullscreenBtn = document.getElementById('fullscreen-btn');
 const fxPanelEmpty = document.getElementById('fx-panel-empty');
 const demoToggleBtn = document.getElementById('demo-toggle');
+const studioAudioControls = document.getElementById('studio-audio-controls');
 const catFilterEl = document.getElementById('fx-cat-filter');
 const volLabel = document.getElementById('vol-label');
 
@@ -110,9 +111,16 @@ const BRAILLE_LUT = (() => {
     return dots.map((d) => String.fromCharCode(0x2800 + d));
 })();
 
-const AUDIO_EQ_CONTROLS = [
-    { id: 'audio-bass-eq', label: 'Bass EQ', min: -12, max: 12, step: 1, def: 4, unit: 'dB' },
-    { id: 'audio-treble-eq', label: 'Treble EQ', min: -12, max: 12, step: 1, def: 0, unit: 'dB' },
+/** Global audio tuning — always visible in the control pane. */
+const GLOBAL_AUDIO_CONTROLS = [
+    { id: 'audio-bass-eq', label: 'Bass', min: -12, max: 12, step: 1, def: 4, unit: 'dB' },
+    { id: 'audio-treble-eq', label: 'Treble', min: -12, max: 12, step: 1, def: 0, unit: 'dB' },
+    { id: 'audio-kick-sens', label: 'Kick', min: 0.0, max: 1.0, step: 0.05, def: 0.82 },
+];
+
+/** WAVEFORM “bass bump” profile — quick centered hit, no lingering shake. */
+const SOUNDWAVE_BUMP_IDS = [
+    'wave-amplitude', 'wave-shimmer', 'wave-burst', 'wave-bass-drive', 'wave-bounce',
 ];
 
 const FX_PRESETS = {
@@ -267,21 +275,20 @@ const FX_PRESETS = {
     },
     soundwave: {
         label: 'WAVEFORM',
-        tip: 'Audio warps the image',
-        hint: 'The audio waveform bends every column — louder = more warp. Bass beats fire ripples.',
+        tip: 'Bass bump warp',
+        hint: 'Quick centered punch on kicks — turn volume up. Open Advanced to widen or smooth it out.',
         fullDesc: 'The audio waveform physically bends the image — each column shifts up or down based on the sound at that exact moment. Turn volume up, then use Warp strength, Shimmer, and Beat burst to dial in smooth waves vs hard rap-style bass blips.',
-        action: 'Turn volume up — every sound physically warps the image.',
+        action: 'Turn volume up — bass hits bump the center of the frame.',
         controls: [
-            { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 18.0, step: 0.1, def: 3.0 },
-            { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 6.0, step: 0.1, def: 1.4 },
-            { id: 'wave-burst',    label: 'Beat burst',    min: 0.0, max: 1.0, step: 0.05, def: 0.45 },
+            { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 18.0, step: 0.1, def: 3.5 },
+            { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 6.0, step: 0.1, def: 0.0 },
+            { id: 'wave-burst',    label: 'Beat burst',    min: 0.0, max: 1.0, step: 0.05, def: 1.0 },
         ],
         advancedControls: [
-            { id: 'wave-bass-drive', label: 'Sub bass hit', min: 0.0, max: 1.0, step: 0.05, def: 0.75 },
-            { id: 'wave-bounce',     label: 'Bounce hang',  min: 0.0, max: 1.0, step: 0.05, def: 0.6 },
-            ...AUDIO_EQ_CONTROLS,
+            { id: 'wave-bass-drive', label: 'Sub bass hit', min: 0.0, max: 1.0, step: 0.05, def: 0.9 },
+            { id: 'wave-bounce',     label: 'Bounce hang',  min: 0.0, max: 1.0, step: 0.05, def: 0.12 },
         ],
-        css: 'fx-soundwave fx-ripple',
+        css: 'fx-soundwave',
         asciiOnly: true,
         interactive: true,
     },
@@ -295,10 +302,7 @@ const FX_PRESETS = {
         controls: [
             { id: 'beat-power', label: 'Beat power', min: 0.3, max: 6.0, step: 0.1, def: 1.2 },
         ],
-        advancedControls: [
-            { id: 'beat-sensitivity', label: 'Kick sensitivity', min: 0.0, max: 1.0, step: 0.05, def: 0.8 },
-            ...AUDIO_EQ_CONTROLS,
-        ],
+        advancedControls: [],
         css: 'fx-beatstrike fx-ripple',
         asciiOnly: true,
         interactive: true,
@@ -752,9 +756,13 @@ function togglePlayback() {
     else if (state === 'PAUSED') resumePlayback();
 }
 
-// Populate fxParams defaults from FX_PRESETS controls definitions
+// Populate fxParams defaults from FX_PRESETS + global audio controls
 const fxParams = {};
 const CONTROL_DEFS = {};
+for (const ctrl of GLOBAL_AUDIO_CONTROLS) {
+    fxParams[ctrl.id] = ctrl.def;
+    CONTROL_DEFS[ctrl.id] = ctrl;
+}
 for (const preset of Object.values(FX_PRESETS)) {
     for (const list of [preset.controls, preset.advancedControls]) {
         if (!list) continue;
@@ -912,6 +920,22 @@ function fxUsesRippleEngine(fx) {
     return fx === 'ripple' || fx === 'auto-ripple' || fx === 'beatstrike' || fx === 'soundwave';
 }
 
+function applySoundwaveBumpDefaults() {
+    for (const id of SOUNDWAVE_BUMP_IDS) {
+        const ctrl = CONTROL_DEFS[id];
+        if (ctrl) fxParams[id] = ctrl.def;
+    }
+    waveBurstEnv = 0;
+}
+
+function buildGlobalAudioBar() {
+    if (!studioAudioControls) return;
+    studioAudioControls.innerHTML = '';
+    GLOBAL_AUDIO_CONTROLS.forEach((ctrl) => {
+        appendFxControlRow(ctrl, studioAudioControls, { compact: true });
+    });
+}
+
 function resetFxState() {
     removeTilt3d();
     container.style.clipPath = '';
@@ -961,6 +985,7 @@ function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
 
     activeFx = id;
     sessionStorage.setItem('asciiline-fx', id);
+    if (id === 'soundwave' && !fromDemo) applySoundwaveBumpDefaults();
     container.className = FX_PRESETS[id].css;
     resetFxState();
     updateFxPickerUI();
@@ -1202,7 +1227,7 @@ function updateWaveformVis() {
     vctx.stroke();
 
     if (waveBurstEnv > 0.04 || (effectiveFx() === 'soundwave' && audioSubBass > 0.2)) {
-        const burstAmt = Math.max(waveBurstEnv, audioSubBass * fxParam('wave-bass-drive', 0.75) * 0.65);
+        const burstAmt = Math.max(waveBurstEnv, audioSubBass * fxParam('wave-bass-drive', 0.9) * 0.65);
         const burstH = burstAmt * h * 0.9;
         const grad = vctx.createLinearGradient(0, midY - burstH, 0, midY + burstH);
         grad.addColorStop(0, `rgba(240, 160, 64, ${0.15 + burstAmt * 0.35})`);
@@ -1393,8 +1418,10 @@ function updateAudioEnergy(now) {
         }
         audioRms = Math.sqrt(rmsSum / audioWaveform.length);
 
-        const bassDrive = fx === 'soundwave' ? fxParam('wave-bass-drive', 0.75)
-            : fx === 'beatstrike' ? fxParam('beat-sensitivity', 0.8) : 0;
+        const kickSens = fxParam('audio-kick-sens', 0.82);
+        const bassDrive = fx === 'soundwave'
+            ? fxParam('wave-bass-drive', 0.9) * (0.4 + kickSens * 0.6)
+            : fx === 'beatstrike' ? kickSens : 0;
         const beatSignal = audioSubBass * (0.45 + bassDrive * 0.95)
             + audioBass * Math.max(0.15, 1 - bassDrive * 0.55);
 
@@ -1404,7 +1431,7 @@ function updateAudioEnergy(now) {
         let histAvg = 0;
         for (let i = 0; i < audioBeatHistory.length; i++) histAvg += audioBeatHistory[i];
         histAvg /= audioBeatHistory.length;
-        const burstParam = fx === 'soundwave' ? fxParam('wave-burst', 0.45) : 0;
+        const burstParam = fx === 'soundwave' ? fxParam('wave-burst', 1.0) : 0;
         const beatGap = fx === 'beatstrike'
             ? 170 - bassDrive * 85
             : 220 - burstParam * 100 - bassDrive * 40;
@@ -1420,12 +1447,14 @@ function updateAudioEnergy(now) {
         if (audioBeat) lastBeatAt = now;
 
         if (fx === 'soundwave') {
-            const bounce = fxParam('wave-bounce', 0.6);
+            const bounce = fxParam('wave-bounce', 0.12);
             if (audioBeat) {
-                const hit = 0.4 + audioSubBass * (0.5 + bassDrive * 0.65) + audioBass * 0.25;
+                const hit = 0.5 + audioSubBass * (0.35 + bassDrive * 0.4);
                 waveBurstEnv = Math.min(1, hit);
             }
-            const decay = 0.76 + bounce * 0.2 - burstParam * 0.1;
+            const decay = bounce < 0.35
+                ? 0.38 + bounce * 0.42
+                : 0.72 + bounce * 0.22 - burstParam * 0.08;
             waveBurstEnv *= decay;
         } else {
             waveBurstEnv = 0;
@@ -1447,7 +1476,7 @@ function updateAudioEnergy(now) {
     }
 
     triglyphOffset = 2 + Math.floor(audioBass * 4 * fxParam('resonate-drive', 1.0));
-    container.classList.toggle('fx-beat', audioBass > 0.55);
+    container.classList.toggle('fx-beat', audioBass > 0.55 && fx !== 'soundwave');
 
     if (fx === 'resonate' && audioBass > 0.65 * (1 / fxParam('resonate-drive', 1.0)) && now >= nextCorruptAt) {
         spawnCorruptZone();
@@ -1896,15 +1925,11 @@ function tickAutoRipple(now) {
 
 function tickBeatstrike(now) {
     const fx = effectiveFx();
-    if ((fx !== 'beatstrike' && fx !== 'soundwave') || state !== 'PLAYING' || pixelMode) return;
+    if (fx !== 'beatstrike' || state !== 'PLAYING' || pixelMode) return;
     if (!audioBeat || gridCols === 0 || gridRows === 0) return;
 
-    const power = fx === 'soundwave'
-        ? (0.65 + fxParam('wave-burst', 0.45) * 2.4) * (0.45 + waveBurstEnv * 0.9 + audioSubBass * 0.5)
-        : fxParam('beat-power', 1.2);
-    const durationScale = fx === 'soundwave'
-        ? Math.max(0.3, 1 - fxParam('wave-burst', 0.45) * 0.5 + fxParam('wave-bounce', 0.6) * 0.25)
-        : 1;
+    const power = fxParam('beat-power', 1.2);
+    const durationScale = 1;
     const rC = () => 1 + Math.floor(Math.random() * (gridCols - 2));
     const rR = () => 1 + Math.floor(Math.random() * (gridRows - 2));
     const rCs = () => AUTO_RIPPLE_CHAR_SETS[Math.floor(Math.random() * AUTO_RIPPLE_CHAR_SETS.length)];
@@ -2978,16 +3003,19 @@ function distortCell(col, row) {
         return { srcCol, srcRow, override: null };
     }
 
-    // SOUNDWAVE — audio waveform bends rows; beat burst gates punchy bass hits
+    // SOUNDWAVE — centered bass bump (burst) or smooth column warp
     if (fx === 'soundwave' && audioWaveform && audioWaveform.length >= 2) {
-        const ampMul = fxParam('wave-amplitude', 3.0);
-        const shimmerMul = fxParam('wave-shimmer', 1.4);
-        const burst = fxParam('wave-burst', 0.45);
+        const ampMul = fxParam('wave-amplitude', 3.5);
+        const shimmerMul = fxParam('wave-shimmer', 0.0);
+        const burst = fxParam('wave-burst', 1.0);
         const smooth = 1 - burst;
         const punch = burst * waveBurstEnv;
-        const bassDrive = fxParam('wave-bass-drive', 0.75);
+        const bassDrive = fxParam('wave-bass-drive', 0.9);
+        const bumpMode = burst > 0.85;
 
-        const span = Math.max(12, Math.floor(audioWaveform.length * (1 - burst * 0.8)));
+        const span = bumpMode
+            ? Math.max(8, Math.floor(audioWaveform.length * 0.35))
+            : Math.max(12, Math.floor(audioWaveform.length * (1 - burst * 0.8)));
         const t = (col / Math.max(1, gridCols - 1)) * (span - 1);
         const i0 = Math.floor(t) % audioWaveform.length;
         const i1 = (i0 + 1) % audioWaveform.length;
@@ -2996,19 +3024,24 @@ function distortCell(col, row) {
         let wave = (wSample - 128) / 128;
 
         if (punch > 0.05) {
-            const sharp = 0.45 + burst * 0.75;
+            const sharp = 0.55 + burst * 0.55;
             wave = Math.sign(wave) * Math.pow(Math.abs(wave), sharp);
         }
 
-        const gate = smooth * (0.25 + audioRms * 0.75)
-            + punch * (0.75 + audioSubBass * (0.55 + bassDrive * 0.5) + audioBass * 0.2);
-        const warpDrive = ampMul * (0.55 + ampMul * 0.45);
-        const amplitude = (10 + audioRms * 110) * warpDrive * gate;
+        const focal = bumpMode ? 0.2 + (1 - bassDrive) * 0.12 : 0.45 + (1 - burst) * 0.3;
+        const ndx = (col - gridCols * 0.5) / Math.max(1, gridCols * focal);
+        const ndy = (row - gridRows * 0.5) / Math.max(1, gridRows * focal);
+        const locality = Math.exp(-(ndx * ndx + ndy * ndy) * (bumpMode ? 3.6 : 1.4));
+
+        const gate = (smooth * (0.08 + audioRms * 0.35) + punch * (0.95 + audioSubBass * 0.45)) * locality;
+        const warpDrive = bumpMode ? ampMul * 1.05 : ampMul * (0.55 + ampMul * 0.45);
+        const baseAmp = bumpMode ? (5 + audioRms * 28) : (10 + audioRms * 110);
+        const amplitude = baseAmp * warpDrive * gate;
         const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + wave * amplitude)));
         const deriv = (audioWaveform[i1] - audioWaveform[i0]) / 256;
-        const shimmerGate = smooth * 0.55 + punch;
+        const shimmerGate = (smooth * 0.35 + punch * 0.4) * locality;
         const srcCol = Math.max(0, Math.min(gridCols - 1,
-            Math.round(col + deriv * audioRms * 22 * shimmerMul * shimmerGate)));
+            Math.round(col + deriv * audioRms * 14 * shimmerMul * shimmerGate)));
         return { srcCol, srcRow, override: null };
     }
     if (fx === 'beatstrike') {
@@ -3467,6 +3500,7 @@ video.addEventListener('loadedmetadata', () => {
 // ── BOOT ──────────────────────────────────────────────────
 
 buildFxPicker();
+buildGlobalAudioBar();
 container.className = FX_PRESETS[activeFx]?.css || 'fx-clean';
 
 function fxGridCols() {
