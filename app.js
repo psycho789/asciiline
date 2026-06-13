@@ -102,6 +102,9 @@ const FONT_STACK = [
 
 const THERMAL_COLORS = ['#001133', '#003366', '#00f3ff', '#39ff14', '#ffaa00', '#ff0040'];
 
+/** Matches ascii_video_player2.py CHAR_RATIO — chars read taller than square pixels. */
+const CHAR_CELL_RATIO = 0.45;
+
 const BRAILLE_LUT = (() => {
     const dots = [0x00, 0x01, 0x05, 0x0d, 0x1f, 0x3d, 0x7b, 0xff];
     return dots.map((d) => String.fromCharCode(0x2800 + d));
@@ -949,7 +952,8 @@ function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
         fontMorphIndex = (fontMorphIndex + 1) % FONT_STACK.length;
         sessionStorage.setItem('asciiline-font-idx', String(fontMorphIndex));
         if (state === 'PLAYING' && !pixelMode && gridCols > 0) {
-            buildCanvas(gridCols, gridRows);
+            const rows = calcAutoRows(gridCols, video.videoWidth, video.videoHeight, false);
+            buildCanvas(gridCols, rows);
         }
         updateFxPickerUI();
         return;
@@ -969,7 +973,8 @@ function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
     if (id === 'melt') initMelt();
 
     if (id === 'font-morph' && state === 'PLAYING' && !pixelMode && gridCols > 0) {
-        buildCanvas(gridCols, gridRows);
+        const rows = calcAutoRows(gridCols, video.videoWidth, video.videoHeight, false);
+        buildCanvas(gridCols, rows);
     }
 
     buildFxPanel(activeFx);
@@ -1095,7 +1100,10 @@ function buildFxPanel(id) {
             btn.addEventListener('click', () => {
                 fontMorphIndex = idx;
                 sessionStorage.setItem('asciiline-font-idx', String(idx));
-                if (state === 'PLAYING' && !pixelMode && gridCols > 0) buildCanvas(gridCols, gridRows);
+                if (state === 'PLAYING' && !pixelMode && gridCols > 0) {
+                    const rows = calcAutoRows(gridCols, video.videoWidth, video.videoHeight, false);
+                    buildCanvas(gridCols, rows);
+                }
                 buildFxPanel(activeFx);
             });
             row.appendChild(btn);
@@ -2403,9 +2411,32 @@ function currentRenderPrefs() {
 }
 
 function calcAutoRows(cols, vidW, vidH, isPixel) {
-    const ratio = vidW / Math.max(vidH, 1);
-    if (isPixel) return Math.max(1, Math.round(cols / ratio));
-    return Math.max(1, Math.round(cols / ratio / 2));
+    if (!vidW || !vidH) return Math.max(1, Math.round(cols * 9 / 16));
+    const videoAspect = vidH / vidW;
+    if (isPixel) return Math.max(1, Math.round(cols * videoAspect));
+    return Math.max(1, Math.round(cols * videoAspect * CHAR_CELL_RATIO));
+}
+
+function fitBoxAspect(boxW, boxH, contentAspectWOverH) {
+    if (boxW <= 0 || boxH <= 0) return { w: 0, h: 0 };
+    let w = boxW;
+    let h = w / contentAspectWOverH;
+    if (h > boxH) {
+        h = boxH;
+        w = h * contentAspectWOverH;
+    }
+    return { w, h };
+}
+
+function layoutPlayerContainer() {
+    const deck = container?.parentElement;
+    if (!deck) return;
+    const vidW = video.videoWidth;
+    const vidH = video.videoHeight;
+    const ar = vidW > 0 && vidH > 0 ? vidW / vidH : 16 / 9;
+    const { w, h } = fitBoxAspect(deck.clientWidth, deck.clientHeight, ar);
+    container.style.width = `${Math.max(1, Math.floor(w))}px`;
+    container.style.height = `${Math.max(1, Math.floor(h))}px`;
 }
 
 function resolveRenderMode(mode) {
@@ -2427,10 +2458,13 @@ function buildCanvas(cols, rows) {
     gridCols = cols;
     gridRows = rows;
 
+    layoutPlayerContainer();
+
     const syncSize = (el) => {
-        el.style.width = container.clientWidth + 'px';
-        el.style.height = container.clientHeight + 'px';
+        el.style.width = `${container.clientWidth}px`;
+        el.style.height = `${container.clientHeight}px`;
         el.style.objectFit = 'contain';
+        el.style.objectPosition = 'center center';
         el.style.position = 'absolute';
         el.style.top = '0';
         el.style.left = '0';
@@ -3122,6 +3156,7 @@ async function initPlayback() {
 
     const cols = prefs.cols;
     const rows = calcAutoRows(cols, video.videoWidth, video.videoHeight, pixelMode);
+    layoutPlayerContainer();
     buildCanvas(cols, rows);
     updateFxPickerUI();
 }
@@ -3419,12 +3454,14 @@ video.addEventListener('ended', async () => {
 
 window.addEventListener('resize', () => {
     updateWaveformVis();
-    if (gridCols > 0 && gridRows > 0 && !pixelMode) {
+    layoutPlayerContainer();
+    if (gridCols > 0 && gridRows > 0) {
         buildCanvas(gridCols, gridRows);
-    } else if (pixelMode && gridCols > 0) {
-        canvas.style.width = container.clientWidth + 'px';
-        canvas.style.height = container.clientHeight + 'px';
     }
+});
+
+video.addEventListener('loadedmetadata', () => {
+    layoutPlayerContainer();
 });
 
 // ── BOOT ──────────────────────────────────────────────────
