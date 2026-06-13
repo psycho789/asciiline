@@ -35,6 +35,7 @@ const fxPanelEmpty = document.getElementById('fx-panel-empty');
 const demoToggleBtn = document.getElementById('demo-toggle');
 const studioAudioControls = document.getElementById('studio-audio-controls');
 const studioRenderControls = document.getElementById('studio-render-controls');
+const aspectSelect = document.getElementById('aspect-select');
 const catFilterEl = document.getElementById('fx-cat-filter');
 const volLabel = document.getElementById('vol-label');
 
@@ -125,9 +126,18 @@ const GRID_COLS_STORAGE = {
 };
 
 const GRID_COLS_LIMITS = {
-    ascii: { min: 120, max: 450, step: 10 },
+    ascii: { min: 120, max: 800, step: 10 },
     pixel: { min: 200, max: 900, step: 10 },
 };
+
+const ASPECT_PRESETS = {
+    '16:9': 16 / 9,
+    '4:3': 4 / 3,
+    '21:9': 21 / 9,
+    '1:1': 1.0,
+};
+const ASPECT_STORAGE = 'asciiline-aspect';
+const ASPECT_ALLOWED = ['auto', '16:9', '4:3', '21:9', '1:1'];
 
 let gridColsSliderEl = null;
 let gridColsValEl = null;
@@ -861,6 +871,13 @@ let preferPixel = sessionStorage.getItem('asciiline-pixel') === '1';
 let activeFx = sessionStorage.getItem('asciiline-fx') || 'clean';
 if (!FX_PRESETS[activeFx]) activeFx = 'clean';
 
+function loadAspectPreset() {
+    const stored = sessionStorage.getItem(ASPECT_STORAGE);
+    return ASPECT_ALLOWED.includes(stored) ? stored : 'auto';
+}
+
+let aspectPreset = loadAspectPreset();
+
 let renderMode = 3;
 let pixelMode = false;
 let lastFrameText = '';
@@ -890,6 +907,7 @@ let workerBusySince = 0;
 
 let frameCount = 0;
 let lastFpsUpdate = 0;
+let bytesThisSecond = 0;
 let lastMediaTime = -1;
 let lastRenderTs = 0;
 let lastFpsMediaSample = -1;
@@ -980,6 +998,26 @@ function buildGlobalAudioBar() {
     });
 }
 
+function syncAspectSelect() {
+    if (aspectSelect) aspectSelect.value = aspectPreset;
+}
+
+function setAspectPreset(value) {
+    if (!ASPECT_ALLOWED.includes(value)) return;
+    aspectPreset = value;
+    sessionStorage.setItem(ASPECT_STORAGE, value);
+    syncAspectSelect();
+    layoutPlayerContainer();
+    rebuildGridIfPlaying();
+    const prefs = currentRenderPrefs();
+    const cols = resolvePlaybackCols(prefs.cols);
+    if (gridCols > 0 && (state === 'PLAYING' || state === 'PAUSED')) {
+        updateGridColsBarLabel(cols, gridRows);
+    } else {
+        updateGridColsBarLabel(cols);
+    }
+}
+
 function gridColsLimitsFor(pixel = preferPixel) {
     return GRID_COLS_LIMITS[pixel ? 'pixel' : 'ascii'];
 }
@@ -1014,7 +1052,7 @@ function updateGridColsBarLabel(cols, rows) {
         return;
     }
     if (video.videoWidth > 0 && video.videoHeight > 0) {
-        const r = calcAutoRows(cols, video.videoWidth, video.videoHeight, preferPixel);
+        const r = calcGridRows(cols, video.videoWidth, video.videoHeight, preferPixel);
         gridColsValEl.textContent = formatGridSizeLabel(cols, r);
     } else {
         gridColsValEl.textContent = String(cols);
@@ -1038,7 +1076,7 @@ function rebuildGridIfPlaying() {
     if (!video.videoWidth || !video.videoHeight) return;
     const prefs = currentRenderPrefs();
     const cols = resolvePlaybackCols(prefs.cols);
-    const rows = calcAutoRows(cols, video.videoWidth, video.videoHeight, pixelMode);
+    const rows = calcGridRows(cols, video.videoWidth, video.videoHeight, pixelMode);
     resetFxState();
     layoutPlayerContainer();
     buildCanvas(cols, rows);
@@ -1126,7 +1164,7 @@ function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
         fontMorphIndex = (fontMorphIndex + 1) % FONT_STACK.length;
         sessionStorage.setItem('asciiline-font-idx', String(fontMorphIndex));
         if (state === 'PLAYING' && !pixelMode && gridCols > 0) {
-            const rows = calcAutoRows(gridCols, video.videoWidth, video.videoHeight, false);
+            const rows = calcGridRows(gridCols, video.videoWidth, video.videoHeight, false);
             buildCanvas(gridCols, rows);
         }
         updateFxPickerUI();
@@ -1148,7 +1186,7 @@ function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
     if (id === 'melt') initMelt();
 
     if (id === 'font-morph' && state === 'PLAYING' && !pixelMode && gridCols > 0) {
-        const rows = calcAutoRows(gridCols, video.videoWidth, video.videoHeight, false);
+        const rows = calcGridRows(gridCols, video.videoWidth, video.videoHeight, false);
         buildCanvas(gridCols, rows);
     }
 
@@ -1276,7 +1314,7 @@ function buildFxPanel(id) {
                 fontMorphIndex = idx;
                 sessionStorage.setItem('asciiline-font-idx', String(idx));
                 if (state === 'PLAYING' && !pixelMode && gridCols > 0) {
-                    const rows = calcAutoRows(gridCols, video.videoWidth, video.videoHeight, false);
+                    const rows = calcGridRows(gridCols, video.videoWidth, video.videoHeight, false);
                     buildCanvas(gridCols, rows);
                 }
                 buildFxPanel(activeFx);
@@ -2654,6 +2692,49 @@ function calcAutoRows(cols, vidW, vidH, isPixel) {
     return Math.max(1, Math.round(cols / ratio / 2));
 }
 
+function calcRowsForAspect(cols, visualAspect, isPixel) {
+    if (isPixel) return Math.max(1, Math.round(cols / visualAspect));
+    return Math.max(1, Math.round(cols / visualAspect / 2));
+}
+
+function calcGridRows(cols, vidW, vidH, isPixel, preset = aspectPreset) {
+    if (preset === 'auto' || !ASPECT_PRESETS[preset]) {
+        return calcAutoRows(cols, vidW, vidH, isPixel);
+    }
+    return calcRowsForAspect(cols, ASPECT_PRESETS[preset], isPixel);
+}
+
+function visualAspectForLayout() {
+    if (aspectPreset !== 'auto' && ASPECT_PRESETS[aspectPreset]) {
+        return ASPECT_PRESETS[aspectPreset];
+    }
+    const vidW = video.videoWidth;
+    const vidH = video.videoHeight;
+    return vidW > 0 && vidH > 0 ? vidW / vidH : 16 / 9;
+}
+
+function formatBitrate(bytesPerSec) {
+    if (bytesPerSec >= 1024 * 1024) {
+        return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+    }
+    if (bytesPerSec >= 1024) {
+        return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    }
+    return `${bytesPerSec} B/s`;
+}
+
+function estimateFrameBytes() {
+    if (gridCols <= 0 || gridRows <= 0) return 0;
+    if (pixelMode) return gridCols * gridRows * 3;
+    if (renderMode === 1) return gridCols * gridRows;
+    return gridCols * gridRows * 4;
+}
+
+function aspectStatusLabel() {
+    if (aspectPreset === 'auto') return 'ASP AUTO';
+    return `ASP ${aspectPreset}`;
+}
+
 function fitBoxAspect(boxW, boxH, contentAspectWOverH) {
     if (boxW <= 0 || boxH <= 0) return { w: 0, h: 0 };
     let w = boxW;
@@ -2668,9 +2749,7 @@ function fitBoxAspect(boxW, boxH, contentAspectWOverH) {
 function layoutPlayerContainer() {
     const deck = container?.parentElement;
     if (!deck) return;
-    const vidW = video.videoWidth;
-    const vidH = video.videoHeight;
-    const ar = vidW > 0 && vidH > 0 ? vidW / vidH : 16 / 9;
+    const ar = visualAspectForLayout();
     const { w, h } = fitBoxAspect(deck.clientWidth, deck.clientHeight, ar);
     container.style.width = `${Math.max(1, Math.floor(w))}px`;
     container.style.height = `${Math.max(1, Math.floor(h))}px`;
@@ -3098,6 +3177,7 @@ function updateModeToggleUI() {
     modeAsciiBtn.setAttribute('aria-pressed', String(!preferPixel));
     modePixelBtn.setAttribute('aria-pressed', String(preferPixel));
     syncGridColsSlider();
+    syncAspectSelect();
 }
 
 function updateCopyFrameButton() {
@@ -3149,11 +3229,15 @@ function statusLabel() {
 
 function updateFpsStatus(now) {
     frameCount++;
+    bytesThisSecond += estimateFrameBytes();
     if (now - lastFpsUpdate < 1000) return;
     refreshVideoFrameRateEstimate();
     const cap = Math.min(MAX_RENDER_FPS, videoFrameRate);
-    statusEl.textContent = `FPS: ${frameCount}/${cap} | ${statusLabel()}`;
+    const throughput = formatBitrate(bytesThisSecond);
+    statusEl.textContent =
+        `FPS: ${frameCount}/${cap} · ${aspectStatusLabel()} · ${throughput} · ${statusLabel()}`;
     frameCount = 0;
+    bytesThisSecond = 0;
     lastFpsUpdate = now;
 }
 
@@ -3645,6 +3729,7 @@ function startFrameLoop() {
     lastFpsMediaSample = -1;
     lastRenderTs = 0;
     frameCount = 0;
+    bytesThisSecond = 0;
     lastFpsUpdate = performance.now();
     cancelFrameLoop();
 
@@ -3689,7 +3774,7 @@ async function initPlayback() {
     }
 
     const cols = resolvePlaybackCols(prefs.cols);
-    const rows = calcAutoRows(cols, video.videoWidth, video.videoHeight, pixelMode);
+    const rows = calcGridRows(cols, video.videoWidth, video.videoHeight, pixelMode);
     layoutPlayerContainer();
     buildCanvas(cols, rows);
     syncGridColsSlider();
@@ -4011,6 +4096,7 @@ window.addEventListener('resize', () => {
 video.addEventListener('loadedmetadata', () => {
     layoutPlayerContainer();
     syncGridColsSlider();
+    syncAspectSelect();
 });
 
 // ── BOOT ──────────────────────────────────────────────────
@@ -4018,6 +4104,10 @@ video.addEventListener('loadedmetadata', () => {
 buildFxPicker();
 buildGridColsBar();
 buildGlobalAudioBar();
+syncAspectSelect();
+if (aspectSelect) {
+    aspectSelect.addEventListener('change', () => setAspectPreset(aspectSelect.value));
+}
 container.className = FX_PRESETS[activeFx]?.css || 'fx-clean';
 
 function fxGridCols() {

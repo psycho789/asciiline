@@ -27,8 +27,9 @@
     <main class="studio-shell">
         <div class="studio-layout">
             <section class="studio-canvas-pane" aria-label="Video player">
-                <div class="player-deck">
-                    <div id="player-container" class="fx-clean">
+                <div class="player-stage">
+                    <div class="player-deck">
+                        <div id="player-container" class="fx-clean">
                         <pre id="ascii-player" aria-hidden="true"></pre>
                         <canvas id="ascii-canvas" aria-hidden="true"></canvas>
                         <div id="fx-overlay" aria-hidden="true"></div>
@@ -80,6 +81,27 @@
                         </div>
                     </div>
                 </div>
+
+                    <div class="player-tuning-bar" id="player-tuning-bar" aria-label="Grid and audio tuning">
+                        <div class="player-tuning-group player-tuning-grid">
+                            <span class="player-tuning-label">Grid</span>
+                            <div class="studio-render-controls" id="studio-render-controls"></div>
+                        </div>
+                        <div class="player-tuning-group player-tuning-aspect">
+                            <label class="player-tuning-label" for="aspect-select">Asp</label>
+                            <select id="aspect-select" class="player-aspect-select" aria-label="Output aspect ratio">
+                                <option value="auto">Auto</option>
+                                <option value="16:9">16:9</option>
+                                <option value="4:3">4:3</option>
+                                <option value="21:9">21:9</option>
+                                <option value="1:1">1:1</option>
+                            </select>
+                        </div>
+                        <div class="player-tuning-group player-tuning-audio">
+                            <div class="studio-audio-controls" id="studio-audio-controls"></div>
+                        </div>
+                    </div>
+                </div>
                 <video id="ascii-video" playsinline preload="metadata" hidden></video>
             </section>
 
@@ -114,16 +136,6 @@
                                 <div class="fx-panel-controls" id="fx-panel-controls"></div>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="studio-render-bar" id="studio-render-bar" aria-label="Grid resolution">
-                        <span class="studio-render-bar-label">Grid</span>
-                        <div class="studio-render-controls" id="studio-render-controls"></div>
-                    </div>
-
-                    <div class="studio-audio-bar" id="studio-audio-bar" aria-label="Global audio tuning">
-                        <span class="studio-audio-bar-label">Audio</span>
-                        <div class="studio-audio-controls" id="studio-audio-controls"></div>
                     </div>
 
                     <div class="fx-grid-wrap">
@@ -175,7 +187,7 @@
     </div>
 
     <script src="client/glyph_atlas.js"></script>
-    <script src="app.js?v=20260612i"></script>
+    <script src="app.js?v=20260612j"></script>
     <svg id="svg-filters" xmlns="http://www.w3.org/2000/svg"
          style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
         <defs>
