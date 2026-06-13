@@ -238,6 +238,9 @@ const FX_PRESETS = {
         fullDesc: 'The video\'s own audio drives the visuals in real time — bass notes widen the RGB color split, boost the phosphor trail, and corrupt the buffer. Turn the volume up for full effect.',
         action: 'Turn volume up — the audio track controls the effect.',
         audioLevel: true,
+        controls: [
+            { id: 'resonate-drive', label: 'Audio drive', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+        ],
         css: 'fx-resonate',
         asciiOnly: true,
         pixelOk: true,
@@ -247,9 +250,13 @@ const FX_PRESETS = {
         label: 'WAVEFORM',
         tip: 'Audio warps the image',
         hint: 'The audio waveform bends every column — louder = more warp. Bass beats fire ripples.',
-        fullDesc: 'The audio waveform physically bends the image — each column shifts up or down based on the sound at that exact moment. Silence = still. Loud music = violent distortion. Bass drops also fire ripples.',
+        fullDesc: 'The audio waveform physically bends the image — each column shifts up or down based on the sound at that exact moment. Turn volume up, then use Warp strength and Shimmer below to dial in how violent the distortion gets.',
         action: 'Turn volume up — every sound physically warps the image.',
         audioLevel: true,
+        controls: [
+            { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 4.0, step: 0.1, def: 2.0 },
+            { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 3.0, step: 0.1, def: 1.4 },
+        ],
         css: 'fx-soundwave fx-ripple',
         asciiOnly: true,
         interactive: true,
@@ -258,9 +265,12 @@ const FX_PRESETS = {
         label: 'BEATFIRE',
         tip: 'Beat-triggered ripples',
         hint: 'Each detected beat fires a ripple scaled to its intensity — light taps, massive drops all look different.',
-        fullDesc: 'Every detected beat fires a ripple wave. Light taps send small rings; hard hits launch double novas; massive bass drops blast multi-ring explosions outward. The harder the beat, the bigger the effect.',
+        fullDesc: 'Every detected beat fires a ripple wave. Light taps send small rings; hard hits launch double novas; massive bass drops blast multi-ring explosions outward. Use Beat power to scale how big each hit looks.',
         action: 'Turn volume up — every beat launches a ripple wave.',
         audioLevel: true,
+        controls: [
+            { id: 'beat-power', label: 'Beat power', min: 0.3, max: 3.0, step: 0.1, def: 1.2 },
+        ],
         css: 'fx-beatstrike fx-ripple',
         asciiOnly: true,
         interactive: true,
@@ -269,9 +279,12 @@ const FX_PRESETS = {
         label: 'SPECTRA',
         tip: 'Frequency-band distortion',
         hint: 'Each horizontal band maps to a frequency — bass rows tear on kicks, mids shift on snares.',
-        fullDesc: 'Each horizontal strip of the image is tied to a specific frequency range. The low-frequency (bass) strips at the bottom tear sideways on kick drums. Mid-frequency strips shift on snares. The whole image becomes an EQ visualizer.',
+        fullDesc: 'Each horizontal strip of the image is tied to a specific frequency range. Bass rows tear on kicks, mids shift on snares. Use Band tear to control how far each frequency band rips sideways.',
         action: 'Turn volume up — different instruments distort different parts of the image.',
         audioLevel: true,
+        controls: [
+            { id: 'spectra-tear', label: 'Band tear', min: 0.3, max: 3.0, step: 0.1, def: 1.3 },
+        ],
         css: 'fx-spectra',
         asciiOnly: true,
         interactive: true,
@@ -383,12 +396,18 @@ const FX_PRESETS = {
         label: 'LENS', tip: 'Barrel fisheye',
         hint: 'The grid warps through a virtual lens — center magnified, edges compressed.',
         fullDesc: 'The character grid warps through a virtual barrel lens — center magnified, edges compressed into a fisheye bulge.',
+        controls: [
+            { id: 'lens-strength', label: 'Barrel strength', min: 0.15, max: 1.0, step: 0.05, def: 0.45 },
+        ],
         css: 'fx-lens', asciiOnly: true,
     },
     swirl: {
         label: 'SWIRL', tip: 'Space spirals inward',
         hint: 'Distance from center determines twist angle — the image funnels into a vortex.',
         fullDesc: 'Distance from center determines twist angle — the image funnels into a slowly rotating vortex.',
+        controls: [
+            { id: 'swirl-twist', label: 'Twist amount', min: 0.3, max: 2.5, step: 0.1, def: 1.0 },
+        ],
         css: 'fx-swirl', asciiOnly: true,
     },
     fold: {
@@ -452,6 +471,9 @@ const FX_PRESETS = {
         fullDesc: 'The frame clips to an ellipse that breathes with the audio — loud moments expand the visible window, silence shrinks it to a tight portal.',
         action: 'Turn volume up. The window grows and shrinks with sound.',
         audioLevel: true,
+        controls: [
+            { id: 'pulse-breath', label: 'Breath amount', min: 0.3, max: 3.0, step: 0.1, def: 1.3 },
+        ],
         css: 'fx-pulse-clip', asciiOnly: false, pixelOk: true, interactive: true,
     },
     edge: {
@@ -740,7 +762,6 @@ function buildFxPanel(id) {
         fxPanelControls.appendChild(row);
 
     } else if (preset.audioLevel) {
-        // Audio level bar
         const barWrap = document.createElement('div');
         barWrap.className = 'fx-audio-bar';
         barWrap.title = 'Live audio level';
@@ -753,9 +774,9 @@ function buildFxPanel(id) {
         barLabel.textContent = 'Turn volume up for full effect';
         fxPanelControls.appendChild(barWrap);
         fxPanelControls.appendChild(barLabel);
+    }
 
-    } else if (preset.controls) {
-        // Sliders
+    if (preset.controls) {
         preset.controls.forEach((ctrl) => {
             const row = document.createElement('div');
             row.className = 'fx-ctrl-row';
@@ -937,10 +958,10 @@ function updateAudioEnergy(now) {
     audioBeat = audioBass > histAvg * 1.5 && audioBass > 0.18 && (now - lastBeatAt) > 260;
     if (audioBeat) lastBeatAt = now;
 
-    triglyphOffset = 2 + Math.floor(audioBass * 4);
+    triglyphOffset = 2 + Math.floor(audioBass * 4 * (fxParams['resonate-drive'] ?? 1.0));
     container.classList.toggle('fx-beat', audioBass > 0.55);
 
-    if (fx === 'resonate' && audioBass > 0.65 && now >= nextCorruptAt) {
+    if (fx === 'resonate' && audioBass > 0.65 * (1 / (fxParams['resonate-drive'] ?? 1.0)) && now >= nextCorruptAt) {
         spawnCorruptZone();
         nextCorruptAt = now + 200;
     }
@@ -1390,34 +1411,32 @@ function tickBeatstrike(now) {
     if ((fx !== 'beatstrike' && fx !== 'soundwave') || state !== 'PLAYING' || pixelMode) return;
     if (!audioBeat || gridCols === 0 || gridRows === 0) return;
 
+    const power = fxParams['beat-power'] ?? 1.2;
     const rC = () => 1 + Math.floor(Math.random() * (gridCols - 2));
     const rR = () => 1 + Math.floor(Math.random() * (gridRows - 2));
     const rCs = () => AUTO_RIPPLE_CHAR_SETS[Math.floor(Math.random() * AUTO_RIPPLE_CHAR_SETS.length)];
 
     if (audioBass > 0.72) {
-        // Massive hit — burst of 5 rings from a cluster of origins
         const oc = rC(), or_ = rR();
         for (let i = 0; i < 5; i++) {
             const ang = (i / 5) * Math.PI * 2;
             fireRippleAt(
                 oc + Math.cos(ang) * 10, or_ + Math.sin(ang) * 5, now,
-                { speed: 0.12 + audioBass * 0.20, duration: 750,
-                  width: 3.5 + audioBass * 3.0, charSet: '\u2588\u2593\u2592\u2591' }
+                { speed: (0.12 + audioBass * 0.20) * power, duration: 750 * power,
+                  width: (3.5 + audioBass * 3.0) * power, charSet: '\u2588\u2593\u2592\u2591' }
             );
         }
     } else if (audioBass > 0.44) {
-        // Strong hit — double nova, staggered speeds
         const c = rC(), r = rR();
         fireRippleAt(c, r, now,
-            { speed: 0.10 + audioBass * 0.12, duration: 650, width: 2.5 + audioBass * 2, charSet: '#@!$%' });
+            { speed: (0.10 + audioBass * 0.12) * power, duration: 650 * power, width: (2.5 + audioBass * 2) * power, charSet: '#@!$%' });
         fireRippleAt(c, r, now + 110,
-            { speed: 0.24 + audioBass * 0.08, duration: 420, width: 1.8, charSet: '~\\/-|' });
+            { speed: (0.24 + audioBass * 0.08) * power, duration: 420 * power, width: 1.8 * power, charSet: '~\\/-|' });
     } else {
-        // Light tap — single ripple, sized to bass energy
         fireRippleAt(rC(), rR(), now, {
-            speed: 0.08 + audioBass * 0.12,
-            duration: 380 + audioBass * 300,
-            width: 1.2 + audioBass * 2.5,
+            speed: (0.08 + audioBass * 0.12) * power,
+            duration: (380 + audioBass * 300) * power,
+            width: (1.2 + audioBass * 2.5) * power,
             charSet: rCs(),
         });
     }
@@ -1550,7 +1569,8 @@ function applyPostFx() {
     if (!usePhosphor || !trailCanvas) return;
 
     const trailBase = fxParams['phosphor-trail'] ?? 0.78;
-    trailCtx.globalAlpha = fx === 'resonate' ? Math.min(0.97, trailBase + audioEnergy * 0.12) : trailBase;
+    const drive = fx === 'resonate' ? (fxParams['resonate-drive'] ?? 1.0) : 1;
+    trailCtx.globalAlpha = fx === 'resonate' ? Math.min(0.97, trailBase + audioEnergy * 0.12 * drive) : trailBase;
     trailCtx.drawImage(trailCanvas, 0, 0);
     trailCtx.globalAlpha = 1;
     trailCtx.drawImage(canvas, 0, 0);
@@ -2390,7 +2410,7 @@ function distortCell(col, row) {
         const nx = (col / (gridCols - 1)) * 2 - 1;
         const ny = (row / (gridRows - 1)) * 2 - 1;
         const r2 = nx * nx + ny * ny;
-        const k = 0.45;
+        const k = fxParams['lens-strength'] ?? 0.45;
         const d = 1 + k * r2;
         const sx = (nx / d + 1) * (gridCols - 1) / 2;
         const sy = (ny / d + 1) * (gridRows - 1) / 2;
@@ -2408,7 +2428,8 @@ function distortCell(col, row) {
         const dy = row - cy;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const t = performance.now() * 0.0003;
-        const theta = dist * 0.12 + t;
+        const twistMul = fxParams['swirl-twist'] ?? 1.0;
+        const theta = dist * 0.12 * twistMul + t;
         const cos = Math.cos(theta);
         const sin = Math.sin(theta);
         const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(cx + dx * cos - dy * sin)));
@@ -2450,12 +2471,12 @@ function distortCell(col, row) {
             const wave = (wSample - 128) / 128; // −1 … +1
 
             if (fx === 'soundwave') {
-                // Vertical displacement — columns undulate up/down with waveform
-                const amplitude = 2 + audioRms * 32;
+                const ampMul = fxParams['wave-amplitude'] ?? 2.0;
+                const shimmerMul = fxParams['wave-shimmer'] ?? 1.4;
+                const amplitude = (4 + audioRms * 56) * ampMul;
                 const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + wave * amplitude)));
-                // Subtle horizontal shimmer from waveform derivative
                 const deriv = (audioWaveform[Math.min(audioWaveform.length - 1, i1 + 1)] - audioWaveform[i0]) / 256;
-                const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + deriv * audioRms * 12)));
+                const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + deriv * audioRms * 22 * shimmerMul)));
                 return { srcCol, srcRow, override: null };
             }
         }
@@ -2468,10 +2489,10 @@ function distortCell(col, row) {
         if (audioFreqData && audioFreqData.length > 0) {
             // Map rows to frequency bins: bottom rows → bass, top rows → mids
             const binIdx = Math.floor((1 - row / Math.max(1, gridRows - 1)) * Math.min(audioFreqData.length - 1, 80));
-            const amp = audioFreqData[binIdx] / 255; // 0 → 1
-            // Alternating shift direction creates a "torn bands" aesthetic
+            const amp = audioFreqData[binIdx] / 255;
             const dir = Math.sin(row * 0.8) >= 0 ? 1 : -1;
-            const maxShift = 4 + amp * 20 + audioRms * 14;
+            const tearMul = fxParams['spectra-tear'] ?? 1.3;
+            const maxShift = (4 + amp * 20 + audioRms * 14) * tearMul;
             const shift = Math.round(dir * amp * maxShift);
             const srcCol = Math.max(0, Math.min(gridCols - 1, col + shift));
             return { srcCol, srcRow: row, override: null };
@@ -2507,7 +2528,8 @@ function processFrame(now) {
     }
     if (fxNow === 'pulse-clip') {
         const base = 42;
-        const pct = base + audioRms * 50 + audioBass * 18;
+        const breathMul = fxParams['pulse-breath'] ?? 1.3;
+        const pct = base + (audioRms * 50 + audioBass * 18) * breathMul;
         container.style.clipPath =
             `ellipse(${Math.min(pct, 92).toFixed(1)}% ${Math.min(pct * 0.72, 68).toFixed(1)}% at 50% 50%)`;
     } else if (container.style.clipPath && fxNow !== 'pulse-clip') {
