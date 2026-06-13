@@ -1,126 +1,285 @@
 /**
  * ASCILINE ENGINE - Pure & Performant Logic
  * =========================================
- * No decorative animations. Pure WebSocket streaming
- * and high-performance canvas rendering.
- * Includes an "Invisible Selection Layer" for text selection.
+ * Wrapped in IIFE with Stream/Render/Metrics namespaces.
  */
+
+(function () {
+    'use strict';
+
+/*
+ * Stream state machine
+ * ─────────────────────────────────────────────────────────
+ *   IDLE  ──startStream()──►  PLAYING  ──finishStream()──►  IDLE
+ *                               │  ▲
+ *                          onclose  reconnectStream()
+ *                               │  │
+ *                               ▼  │
+ *                           (retrying — Stream.reconnecting=true)
+ *
+ * Invariants on transition TO IDLE:
+ *   Stream.frameBuffer.length = 0
+ *   Render.renderWorker terminated
+ *   audioEl paused and src cleared
+ */
+
+// ── STREAM PREFS (cols + aspect, persisted in localStorage) ──
+const COLS_MIN = 120;
+const COLS_MAX = 800;
+const COLS_DEFAULT = 280;
+const STORAGE_COLS = 'asciiline.cols';
+const STORAGE_ASPECT = 'asciiline.aspect';
+
+function loadStreamCols() {
+    const stored = parseInt(localStorage.getItem(STORAGE_COLS) || '', 10);
+    if (Number.isFinite(stored) && stored >= COLS_MIN && stored <= COLS_MAX) {
+        return stored;
+    }
+    return COLS_DEFAULT;
+}
+
+function loadStreamAspect() {
+    const stored = localStorage.getItem(STORAGE_ASPECT) || 'auto';
+    const allowed = ['auto', '16:9', '4:3', '21:9', '1:1'];
+    return allowed.includes(stored) ? stored : 'auto';
+}
+
+const RECONNECT_MAX_RETRIES = 3;
+const MAX_FRAME_BUFFER = 20;
+
+const Stream = {
+    ws: null,
+    state: 'IDLE',
+    frameBuffer: [],
+    targetFps: 24,
+    renderMode: 1,
+    pixelMode: false,
+    readyToRender: false,
+    reconnecting: false,
+    reconnectRetries: 0,
+    streamCols: loadStreamCols(),
+    streamAspect: loadStreamAspect(),
+    gridCols: 0,
+    gridRows: 0,
+};
+
+const Render = {
+    glyphAtlas: null,
+    colorFrameImageData: null,
+    charWidth: 0,
+    charHeight: 0,
+    xPos: null,
+    yPos: null,
+    selectionBuffer: null,
+    selectionRowStride: 0,
+    dotImageData: null,
+    renderWorker: null,
+    workerBusy: false,
+    workerPendingFrame: null,
+    workerBusySince: 0,
+    useRenderWorker: typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined',
+    textDecoder: new TextDecoder(),
+};
+
+const Metrics = {
+    frameCount: 0,
+    currentFps: 0,
+    currentBitrate: 0,
+    bytesReceivedWindow: 0,
+    lastFpsUpdate: 0,
+    streamStartTime: 0,
+    lastRenderTime: 0,
+    frameDropCount: 0,
+    workerBusyWindowMs: 0,
+    renderMsSum: 0,
+    renderMsCount: 0,
+    _workerBusySince: 0,
+};
+
+const metricsPanel = document.getElementById('metrics-panel');
+const mFps = document.getElementById('m-fps');
+const mNet = document.getElementById('m-net');
+const mDrops = document.getElementById('m-drops');
+const mWrk = document.getElementById('m-wrk');
+const mRend = document.getElementById('m-rend');
 
 const player    = document.getElementById('ascii-player');
 const canvas    = document.getElementById('ascii-canvas');
 const ctx       = canvas.getContext('2d');
 const statusEl  = document.getElementById('status');
+const streamStatsEl = document.getElementById('stream-stats');
 const container = document.getElementById('player-container');
 const overlay   = document.getElementById('play-overlay');
 const audioEl   = document.getElementById('ascii-audio');
 const volumeSlider = document.getElementById('volume-slider');
+const colsSlider = document.getElementById('cols-slider');
+const colsValueEl = document.getElementById('cols-value');
+const aspectSelect = document.getElementById('aspect-select');
 
-const { buildCharLut, buildGlyphAtlas, compositeColorAsciiFrame } =
+const { buildCharLut, buildGlyphAtlas, compositeColorAsciiFrame, applyDeltaFrame } =
     window.AsciilineGlyphAtlas;
 
-// ── STATE ──
-let state = 'IDLE'; // IDLE | PLAYING
-let ws = null;
-const frameBuffer = [];
-const MAX_FRAME_BUFFER = 20;
-let targetFps = 24;
-let renderMode = 1;
-let pixelMode = false;
-let readyToRender = false;
-
-// Grid & Dimensions
-let gridCols = 0;
-let charWidth = 0, charHeight = 0;
-let xPos = null, yPos = null;
-
-// Pixel Mode (--pixel) — ImageData pixel buffer
-let dotImageData = null;
-
-// Color ASCII atlas + compositor
-let glyphAtlas = null;
-let colorFrameImageData = null;
-let selectionRowStride = 0;
-
-// OffscreenCanvas render worker
-const useRenderWorker =
-    typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined';
-let renderWorker = null;
-let workerBusy = false;
-let workerPendingView = null;
-
-// Selection Layer optimization
-const textDecoder = new TextDecoder();
-let selectionBuffer = null;
-
-// Timing & Metrics
-let lastRenderTime = 0;
-let frameCount = 0, currentFps = 0, lastFpsUpdate = 0;
-let streamStartTime = 0;
-
 const CHAR_LUT = buildCharLut();
+
+function messageByteLength(data) {
+    if (typeof data === 'string') {
+        return new TextEncoder().encode(data).byteLength;
+    }
+    if (data instanceof ArrayBuffer) {
+        return data.byteLength;
+    }
+    if (ArrayBuffer.isView(data)) {
+        return data.byteLength;
+    }
+    return 0;
+}
+
+function formatBitrate(bytesPerSec) {
+    if (bytesPerSec >= 1024 * 1024) {
+        return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+    }
+    if (bytesPerSec >= 1024) {
+        return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    }
+    return `${bytesPerSec} B/s`;
+}
+
+function updateStreamStats() {
+    if (!streamStatsEl) {
+        return;
+    }
+    if (Stream.state !== 'PLAYING') {
+        streamStatsEl.hidden = true;
+        return;
+    }
+    streamStatsEl.hidden = false;
+    streamStatsEl.textContent =
+        `FPS ${Metrics.currentFps}/${Math.round(Stream.targetFps)}`
+        + ` · NET ${formatBitrate(Metrics.currentBitrate)}`
+        + ` · GRID ${Stream.gridCols}×${Stream.gridRows}`
+        + ` · BUF ${Stream.frameBuffer.length}`;
+}
+
+function resetStreamMetrics() {
+    Metrics.frameCount = 0;
+    Metrics.currentFps = 0;
+    Metrics.bytesReceivedWindow = 0;
+    Metrics.currentBitrate = 0;
+    Metrics.lastFpsUpdate = 0;
+    Metrics.frameDropCount = 0;
+    Metrics.workerBusyWindowMs = 0;
+    Metrics.renderMsSum = 0;
+    Metrics.renderMsCount = 0;
+    updateStreamStats();
+    updateMetricsPanel();
+}
+
+function updateMetricsPanel() {
+    if (!metricsPanel || metricsPanel.hidden) {
+        return;
+    }
+    if (mFps) {
+        mFps.textContent = `${Metrics.currentFps}/${Math.round(Stream.targetFps)}`;
+    }
+    if (mNet) {
+        mNet.textContent = formatBitrate(Metrics.currentBitrate);
+    }
+    if (mDrops) {
+        mDrops.textContent = String(Metrics.frameDropCount);
+    }
+    const workerPct = Metrics.frameCount > 0
+        ? Math.round((Metrics.workerBusyWindowMs / 1000) * 100)
+        : 0;
+    if (mWrk) {
+        mWrk.textContent = String(workerPct);
+    }
+    const renderMs = Metrics.renderMsCount > 0
+        ? (Metrics.renderMsSum / Metrics.renderMsCount).toFixed(1)
+        : '—';
+    if (mRend) {
+        mRend.textContent = String(renderMs);
+    }
+}
 
 // ═══════════════════════════════════════
 //  CANVAS SETUP
 // ═══════════════════════════════════════
 
 function initRenderWorker() {
-    if (!useRenderWorker) {
+    if (!Render.useRenderWorker) {
         return;
     }
-    if (renderWorker) {
-        renderWorker.terminate();
-        renderWorker = null;
-        workerBusy = false;
-        workerPendingView = null;
+    if (Render.renderWorker) {
+        Render.renderWorker.terminate();
+        Render.renderWorker = null;
+        Render.workerBusy = false;
+        Render.workerPendingFrame = null;
     }
-    renderWorker = new Worker('/static/client/render_worker.js');
-    renderWorker.onmessage = (event) => {
+    try {
+        Render.renderWorker = new Worker('/static/client/render_worker.js');
+    } catch {
+        Render.useRenderWorker = false;
+        Render.renderWorker = null;
+        return;
+    }
+    Render.renderWorker.onmessage = (event) => {
         if (event.data.type !== 'frame') {
             return;
         }
         applyWorkerFrame(event.data);
-        workerBusy = false;
-        if (workerPendingView) {
-            const pending = workerPendingView;
-            workerPendingView = null;
-            postFrameToWorker(pending);
+        Render.workerBusy = false;
+        if (Render.workerPendingFrame) {
+            const pending = Render.workerPendingFrame;
+            Render.workerPendingFrame = null;
+            postFrameToWorker(pending.buffer, pending.payloadOffset, pending.isDelta);
         }
     };
-    renderWorker.onerror = () => {
-        workerBusy = false;
-        workerPendingView = null;
+    Render.renderWorker.onerror = () => {
+        Render.renderWorker.terminate();
+        Render.renderWorker = null;
+        Render.useRenderWorker = false;
+        Render.workerBusy = false;
+        if (Render.workerPendingFrame) {
+            const pending = Render.workerPendingFrame;
+            Render.workerPendingFrame = null;
+            renderColorAsciiFrame(pending.buffer, pending.payloadOffset);
+        }
     };
     syncWorkerInit();
 }
 
 function syncWorkerInit() {
-    if (!renderWorker || !glyphAtlas) {
+    if (!Render.renderWorker || !Render.glyphAtlas) {
         return;
     }
-    renderWorker.postMessage({
+    Render.renderWorker.postMessage({
         type: 'init',
         atlas: {
-            pixels: glyphAtlas.pixels,
-            width: glyphAtlas.width,
-            cellW: glyphAtlas.cellW,
-            cellH: glyphAtlas.cellH,
-            atlasCols: glyphAtlas.atlasCols,
+            pixels: Render.glyphAtlas.pixels,
+            width: Render.glyphAtlas.width,
+            cellW: Render.glyphAtlas.cellW,
+            cellH: Render.glyphAtlas.cellH,
+            atlasCols: Render.glyphAtlas.atlasCols,
         },
         width: canvas.width,
         height: canvas.height,
-        xPos: xPos,
-        yPos: yPos,
+        xPos: Render.xPos,
+        yPos: Render.yPos,
+        gridRows: Stream.gridRows,
+        gridCols: Stream.gridCols,
+        selectionRowStride: Render.selectionRowStride,
     });
 }
 
 function rebuildGlyphAtlas() {
-    glyphAtlas = buildGlyphAtlas(charWidth, charHeight, CHAR_LUT);
-    colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    Render.glyphAtlas = buildGlyphAtlas(Render.charWidth, Render.charHeight, CHAR_LUT);
+    Render.colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
     syncWorkerInit();
 }
 
 function buildCanvas(cols, rows) {
-    gridCols = cols;
+    Stream.gridCols = cols;
+    Stream.gridRows = rows;
 
     // Sizing and positioning for both layers
     const syncSize = (el) => {
@@ -132,37 +291,37 @@ function buildCanvas(cols, rows) {
         el.style.left = '0';
     };
 
-    if (pixelMode) {
+    if (Stream.pixelMode) {
         // ── DOT MODE: 1 canvas pixel = 1 grid cell ──
         canvas.width  = cols;
         canvas.height = rows;
         canvas.style.display = 'block';
         canvas.style.imageRendering = 'pixelated';
-        dotImageData = ctx.createImageData(cols, rows);
+        Render.dotImageData = ctx.createImageData(cols, rows);
         // Pre-fill alpha channel to 255 (fully opaque)
-        const d = dotImageData.data;
+        const d = Render.dotImageData.data;
         for (let i = 3; i < d.length; i += 4) d[i] = 255;
         syncSize(canvas);
-        glyphAtlas = null;
-        colorFrameImageData = null;
+        Render.glyphAtlas = null;
+        Render.colorFrameImageData = null;
         // Hide selection layer — no text to select in dot mode
         player.style.display = 'none';
     } else {
         // ── STANDARD ASCII MODES (1-5) ──
         canvas.style.imageRendering = '';
-        dotImageData = null;
+        Render.dotImageData = null;
         ctx.font = 'bold 8px Courier New';
-        charWidth = ctx.measureText('M').width;
-        charHeight = 8;
-        canvas.width  = cols * charWidth;
-        canvas.height = rows * charHeight;
+        Render.charWidth = ctx.measureText('M').width;
+        Render.charHeight = 8;
+        canvas.width  = cols * Render.charWidth;
+        canvas.height = rows * Render.charHeight;
         canvas.style.display = 'block';
 
         // Selection Layer Buffer
-        selectionRowStride = cols + 1;
-        selectionBuffer = new Uint8Array(selectionRowStride * rows);
+        Render.selectionRowStride = cols + 1;
+        Render.selectionBuffer = new Uint8Array(Render.selectionRowStride * rows);
         for (let r = 0; r < rows; r++) {
-            selectionBuffer[r * selectionRowStride + cols] = 10;
+            Render.selectionBuffer[r * Render.selectionRowStride + cols] = 10;
         }
 
         syncSize(canvas);
@@ -178,12 +337,12 @@ function buildCanvas(cols, rows) {
 
         ctx.font = 'bold 8px Courier New';
         ctx.textBaseline = 'top';
-        xPos = new Float32Array(cols);
-        yPos = new Float32Array(rows);
-        for (let c = 0; c < cols; c++) xPos[c] = c * charWidth;
-        for (let r = 0; r < rows; r++) yPos[r] = r * charHeight;
+        Render.xPos = new Float32Array(cols);
+        Render.yPos = new Float32Array(rows);
+        for (let c = 0; c < cols; c++) Render.xPos[c] = c * Render.charWidth;
+        for (let r = 0; r < rows; r++) Render.yPos[r] = r * Render.charHeight;
 
-        if (renderMode !== 1) {
+        if (Stream.renderMode !== 1) {
             rebuildGlyphAtlas();
             initRenderWorker();
         }
@@ -191,7 +350,7 @@ function buildCanvas(cols, rows) {
 }
 
 function syncSelectionTransform() {
-    if (pixelMode || !canvas.width || !canvas.height) return;
+    if (Stream.pixelMode || !canvas.width || !canvas.height) return;
     const containerW = container.clientWidth;
     const containerH = container.clientHeight;
     const fitScaleX = containerW / canvas.width;
@@ -208,70 +367,103 @@ function syncSelectionTransform() {
 function updateSelectionLayer() {
     player.style.display = 'block';
     player.style.color = 'transparent';
-    player.textContent = textDecoder.decode(selectionBuffer);
+    player.textContent = Render.textDecoder.decode(Render.selectionBuffer);
 }
 
 function applyWorkerFrame(payload) {
     const { imageData, selectionBuffer: workerSelection, width, height } = payload;
     const pixels = new Uint8ClampedArray(imageData);
     ctx.putImageData(new ImageData(pixels, width, height), 0, 0);
-    selectionBuffer.set(new Uint8Array(workerSelection));
+    Render.selectionBuffer.set(new Uint8Array(workerSelection));
     updateSelectionLayer();
+    if (Render.renderWorker) {
+        Render.renderWorker.postMessage({ type: 'reclaim', buffer: imageData }, [imageData]);
+    }
 }
 
-function postFrameToWorker(view) {
-    if (!renderWorker || !glyphAtlas) {
-        renderColorAsciiFrame(view);
+function postFrameToWorker(buffer, payloadOffset, isDelta = false) {
+    if (!Render.renderWorker || !Render.glyphAtlas) {
+        if (isDelta) {
+            renderDeltaFrame(buffer, payloadOffset);
+        } else {
+            renderColorAsciiFrame(buffer, payloadOffset);
+        }
         return;
     }
-    if (workerBusy) {
-        workerPendingView = view;
+    if (Render.workerBusy) {
+        Render.workerPendingFrame = { buffer, payloadOffset, isDelta };
         return;
     }
-    workerBusy = true;
-    const viewCopy = new Uint8Array(view);
-    renderWorker.postMessage(
+    Render.workerBusy = true;
+    Render.workerBusySince = performance.now();
+    Render.renderWorker.postMessage(
         {
-            type: 'frame',
-            view: viewCopy,
-            gridCols,
-            gridRows: selectionBuffer.length / selectionRowStride,
-            width: canvas.width,
-            height: canvas.height,
-            charWidth,
-            charHeight,
-            selectionRowStride,
+            type: isDelta ? 'delta' : 'frame',
+            buffer,
+            payloadOffset,
+            charWidth: Render.charWidth,
+            charHeight: Render.charHeight,
         },
-        [viewCopy.buffer],
+        [buffer],
     );
 }
 
-function renderColorAsciiFrame(view) {
+function renderColorAsciiFrame(buffer, payloadOffset) {
+    const view = new Uint8Array(buffer, payloadOffset);
     if (
-        !colorFrameImageData ||
-        colorFrameImageData.width !== canvas.width ||
-        colorFrameImageData.height !== canvas.height
+        !Render.colorFrameImageData ||
+        Render.colorFrameImageData.width !== canvas.width ||
+        Render.colorFrameImageData.height !== canvas.height
     ) {
-        colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+        Render.colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
     }
 
     compositeColorAsciiFrame({
         view,
-        gridCols,
-        gridRows: selectionBuffer.length / selectionRowStride,
+        gridCols: Stream.gridCols,
+        gridRows: Render.selectionBuffer.length / Render.selectionRowStride,
         width: canvas.width,
         height: canvas.height,
-        charWidth,
-        charHeight,
-        atlas: glyphAtlas,
-        destData: colorFrameImageData.data,
-        selectionBuffer,
-        selectionRowStride,
-        xPos,
-        yPos,
+        charWidth: Render.charWidth,
+        charHeight: Render.charHeight,
+        atlas: Render.glyphAtlas,
+        destData: Render.colorFrameImageData.data,
+        selectionBuffer: Render.selectionBuffer,
+        selectionRowStride: Render.selectionRowStride,
+        xPos: Render.xPos,
+        yPos: Render.yPos,
     });
 
-    ctx.putImageData(colorFrameImageData, 0, 0);
+    ctx.putImageData(Render.colorFrameImageData, 0, 0);
+    updateSelectionLayer();
+}
+
+function renderDeltaFrame(buffer, payloadOffset) {
+    if (
+        !Render.colorFrameImageData ||
+        Render.colorFrameImageData.width !== canvas.width ||
+        Render.colorFrameImageData.height !== canvas.height
+    ) {
+        Render.colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    }
+
+    applyDeltaFrame({
+        deltaView: new Uint8Array(buffer, payloadOffset),
+        gridCols: Stream.gridCols,
+        gridRows: Stream.gridRows,
+        width: canvas.width,
+        height: canvas.height,
+        charWidth: Render.charWidth,
+        charHeight: Render.charHeight,
+        atlas: Render.glyphAtlas,
+        destData: Render.colorFrameImageData.data,
+        selectionBuffer: Render.selectionBuffer,
+        selectionRowStride: Render.selectionRowStride,
+        xPos: Render.xPos,
+        yPos: Render.yPos,
+    });
+
+    ctx.putImageData(Render.colorFrameImageData, 0, 0);
     updateSelectionLayer();
 }
 
@@ -280,53 +472,146 @@ function renderColorAsciiFrame(view) {
 // ═══════════════════════════════════════
 
 function startStream() {
-    if (state !== 'IDLE') return;
+    if (Stream.state !== 'IDLE') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        statusEl.textContent = 'Motion reduced — enable animations to play.';
+        return;
+    }
     overlay.classList.add('hidden');
     statusEl.textContent = 'Connecting...';
     statusEl.style.color = 'var(--accent-color)';
     connectWebSocket();
 }
 
-function connectWebSocket() {
-    frameBuffer.length = 0;
-    frameCount = 0;
-    currentFps = 0;
+function buildWsUrl() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const params = new URLSearchParams();
+    params.set('cols', String(Stream.streamCols));
+    params.set('aspect', Stream.streamAspect);
+    return `${protocol}//${location.host}/ws?${params.toString()}`;
+}
+
+function closeActiveWebSocket() {
+    return new Promise((resolve) => {
+        if (!Stream.ws) {
+            resolve();
+            return;
+        }
+        const socket = Stream.ws;
+        Stream.ws = null;
+        if (socket.readyState === WebSocket.CLOSED) {
+            resolve();
+            return;
+        }
+        const finish = () => resolve();
+        socket.addEventListener('close', finish, { once: true });
+        socket.addEventListener('error', finish, { once: true });
+        socket.close();
+        setTimeout(finish, 2000);
+    });
+}
+
+function reconnectStream() {
+    if (Stream.reconnecting) {
+        return;
+    }
+    Stream.reconnecting = true;
+    Stream.reconnectRetries = 0;
+    Stream.readyToRender = false;
+    Stream.frameBuffer.length = 0;
+    Metrics.frameCount = 0;
+    if (Render.renderWorker) {
+        Render.renderWorker.terminate();
+        Render.renderWorker = null;
+        Render.workerBusy = false;
+        Render.workerPendingFrame = null;
+    }
+    if (audioEl) {
+        audioEl.pause();
+        audioEl.src = '';
+    }
+    statusEl.textContent = 'Reconnecting...';
+    statusEl.style.color = 'var(--accent-color)';
+    closeActiveWebSocket().then(() => connectWebSocket(true));
+}
+
+function persistStreamPrefs() {
+    localStorage.setItem(STORAGE_COLS, String(Stream.streamCols));
+    localStorage.setItem(STORAGE_ASPECT, Stream.streamAspect);
+}
+
+function applyStreamSettingChange() {
+    persistStreamPrefs();
+    if (Stream.state === 'PLAYING') {
+        reconnectStream();
+    }
+}
+
+function scheduleReconnectRetry() {
+    if (Stream.reconnectRetries >= RECONNECT_MAX_RETRIES) {
+        Stream.reconnecting = false;
+        statusEl.textContent = 'Connection Error!';
+        statusEl.style.color = '#ff0000';
+        setTimeout(() => finishStream(), 2000);
+        return;
+    }
+    Stream.reconnectRetries += 1;
+    statusEl.textContent = `Reconnecting (${Stream.reconnectRetries}/${RECONNECT_MAX_RETRIES})...`;
+    statusEl.style.color = 'var(--accent-color)';
+    closeActiveWebSocket().then(() => {
+        setTimeout(() => connectWebSocket(true), 150 * Stream.reconnectRetries);
+    });
+}
+
+function connectWebSocket(isReconnect = false) {
+    resetStreamMetrics();
+    Stream.frameBuffer.length = 0;
 
     // Audio is loaded later in INIT handler (Audio Ready Gate).
     // Don't preload here — causes race conditions with vol=0 (204 response).
 
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${location.host}/ws`);
-    ws.binaryType = 'arraybuffer';
+    Stream.ws = new WebSocket(buildWsUrl());
+    Stream.ws.binaryType = 'arraybuffer';
 
-    ws.onmessage = (event) => {
+    Stream.ws.onmessage = (event) => {
+        Metrics.bytesReceivedWindow += messageByteLength(event.data);
+
         if (typeof event.data === 'string') {
+            if (event.data === 'DONE:') {
+                statusEl.textContent = 'Stream complete.';
+                setTimeout(() => finishStream(), 800);
+                return;
+            }
             if (event.data.startsWith('Error:')) {
                 statusEl.textContent = event.data;
                 statusEl.style.color = '#ff0000';
-                if (ws) ws.close();
+                if (Stream.ws) Stream.ws.close();
                 setTimeout(() => finishStream(), 3000);
                 return;
             }
             if (event.data.startsWith('INIT:')) {
                 const p = event.data.split(':');
-                targetFps = parseFloat(p[1]);
-                renderMode = parseInt(p[2]);
-                pixelMode = (p.length > 5 && parseInt(p[5]) === 1);
+                Stream.targetFps = parseFloat(p[1]);
+                Stream.renderMode = parseInt(p[2]);
+                Stream.pixelMode = (p.length > 5 && parseInt(p[5]) === 1);
                 const sessionId = p.length > 6 ? p[6] : null;
                 buildCanvas(parseInt(p[3]), parseInt(p[4]));
+                updateStreamStats();
 
                 // ── AUDIO READY GATE ──
                 // Buffer video frames but don't render until audio is ready.
                 // This prevents the 0.5s initial stutter.
-                readyToRender = false;
-                state = 'PLAYING';
+                Stream.readyToRender = false;
+                Stream.state = 'PLAYING';
 
                 const beginRendering = () => {
-                    readyToRender = true;
-                    streamStartTime = performance.now();
-                    lastRenderTime = performance.now();
-                    lastFpsUpdate = lastRenderTime;
+                    if (Stream.readyToRender) return;
+                    Stream.readyToRender = true;
+                    Metrics.streamStartTime = performance.now();
+                    Metrics.lastRenderTime = performance.now();
+                    Metrics.lastFpsUpdate = Metrics.lastRenderTime;
+                    statusEl.textContent = 'Streaming';
+                    updateStreamStats();
                     requestAnimationFrame(renderFrame);
                 };
 
@@ -346,7 +631,7 @@ function connectWebSocket() {
                         audioEl.addEventListener('playing', beginRendering, { once: true });
                         // Fallback: if audio fails to load (vol=0 / 204), start after 500ms
                         setTimeout(() => {
-                            if (!readyToRender) beginRendering();
+                            if (!Stream.readyToRender) beginRendering();
                         }, 500);
                     }
                 } else {
@@ -355,31 +640,40 @@ function connectWebSocket() {
                 }
         return;
             }
-            
-            // Mode 1: Text Frame with Timestamp
+
+            // Legacy text mode-1 path (pre-binary)
             const text = event.data;
             const newlineIdx = text.indexOf('\n');
             const frameIndex = parseInt(text.substring(0, newlineIdx));
-            const frameTime = frameIndex / targetFps;
+            const frameTime = frameIndex / Stream.targetFps;
             const frameData = text.substring(newlineIdx + 1);
-            frameBuffer.push({ data: frameData, time: frameTime });
+            Stream.frameBuffer.push({ data: frameData, time: frameTime, isText: true });
         } else {
             // Binary Frames with 4-byte header
             const buffer = event.data;
             const view = new DataView(buffer);
             const frameIndex = view.getUint32(0, false); // Big-endian
-            const frameTime = frameIndex / targetFps;
-            const frameData = new Uint8Array(buffer, 4);
-            frameBuffer.push({ data: frameData, time: frameTime });
+            const frameTime = frameIndex / Stream.targetFps;
+            Stream.frameBuffer.push({ buffer, payloadOffset: 4, time: frameTime });
         }
 
-        while (frameBuffer.length > MAX_FRAME_BUFFER) frameBuffer.shift();
+        while (Stream.frameBuffer.length > MAX_FRAME_BUFFER) Stream.frameBuffer.shift();
+        if (Stream.state === 'PLAYING') {
+            updateStreamStats();
+        }
     };
 
-    ws.onopen = () => { statusEl.textContent = 'Buffering...'; };
+    Stream.ws.onopen = () => {
+        Stream.reconnecting = false;
+        Stream.reconnectRetries = 0;
+        statusEl.textContent = 'Buffering...';
+    };
 
-    ws.onclose = () => {
-        if (state === 'PLAYING') {
+    Stream.ws.onclose = () => {
+        if (Stream.reconnecting) {
+            return;
+        }
+        if (Stream.state === 'PLAYING') {
             statusEl.textContent = 'Stream Ended.';
             statusEl.style.color = '#888';
             if (audioEl) audioEl.pause();
@@ -387,7 +681,11 @@ function connectWebSocket() {
         }
     };
 
-    ws.onerror = () => {
+    Stream.ws.onerror = () => {
+        if (isReconnect || Stream.reconnecting) {
+            scheduleReconnectRetry();
+            return;
+        }
         statusEl.textContent = 'Connection Error!';
         statusEl.style.color = '#ff0000';
         setTimeout(() => finishStream(), 2000);
@@ -399,68 +697,131 @@ function connectWebSocket() {
 // ═══════════════════════════════════════
 
 function renderFrame(now) {
-    if (state !== 'PLAYING' || !readyToRender) return;
+    if (Stream.state !== 'PLAYING' || !Stream.readyToRender) return;
     requestAnimationFrame(renderFrame);
+    updateStreamStats();
+    if (Render.workerBusy) {
+        Metrics.workerBusyWindowMs += now - (Metrics._workerBusySince || now);
+    }
+    Metrics._workerBusySince = Render.workerBusy ? now : 0;
+
+    if (
+        Render.useRenderWorker &&
+        Render.workerBusy &&
+        now - Render.workerBusySince > 500
+    ) {
+        Render.useRenderWorker = false;
+        Render.workerBusy = false;
+        if (Render.renderWorker) {
+            Render.renderWorker.terminate();
+            Render.renderWorker = null;
+        }
+        if (Render.workerPendingFrame) {
+            const pending = Render.workerPendingFrame;
+            Render.workerPendingFrame = null;
+            if (pending.isDelta) {
+                renderDeltaFrame(pending.buffer, pending.payloadOffset);
+            } else {
+                renderColorAsciiFrame(pending.buffer, pending.payloadOffset);
+            }
+        }
+    }
 
     // ── MASTER CLOCK LOGIC ──
     let masterClock;
     if (audioEl && audioEl.readyState >= 1 && !audioEl.paused) {
         masterClock = audioEl.currentTime;
     } else {
-        masterClock = (now - streamStartTime) / 1000.0;
+        masterClock = (now - Metrics.streamStartTime) / 1000.0;
     }
 
-    if (frameBuffer.length === 0) return;
+    if (Stream.frameBuffer.length === 0) return;
 
     // A/V Sync: Drop frames that are too far behind the master clock (catch up)
-    while (frameBuffer.length > 1 && frameBuffer[0].time < masterClock - 0.1) {
-        frameBuffer.shift();
+    while (Stream.frameBuffer.length > 1 && Stream.frameBuffer[0].time < masterClock - 0.1) {
+        Stream.frameBuffer.shift();
+        Metrics.frameDropCount += 1;
     }
 
     // A/V Sync: Wait if the frame is in the future
-    if (frameBuffer[0].time > masterClock + 0.05) {
+    if (Stream.frameBuffer[0].time > masterClock + 0.05) {
         return;
     }
 
-    const frameObj = frameBuffer.shift();
-    const frame = frameObj.data;
+    const frameObj = Stream.frameBuffer.shift();
 
-    frameCount++;
-    if (now - lastFpsUpdate >= 1000) {
-        currentFps = frameCount;
-        frameCount = 0;
-        lastFpsUpdate = now;
-        const modes = { 2: '512 Color', 3: '32K Color', 4: '262K Color', 5: '16M Ultra' };
-        const label = (modes[renderMode] || 'B&W') + (pixelMode ? ' PIXEL' : '');
-        statusEl.textContent = `FPS: ${currentFps}/${Math.round(targetFps)} | Buf: ${frameBuffer.length} | ${label}`;
+    Metrics.frameCount++;
+    if (now - Metrics.lastFpsUpdate >= 1000) {
+        Metrics.currentFps = Metrics.frameCount;
+        Metrics.currentBitrate = Metrics.bytesReceivedWindow;
+        Metrics.bytesReceivedWindow = 0;
+        Metrics.frameCount = 0;
+        Metrics.lastFpsUpdate = now;
     }
 
-    lastRenderTime = now;
+    Metrics.lastRenderTime = now;
 
-    if (renderMode === 1) {
+    if (Stream.renderMode === 1) {
         player.style.display = 'block';
         player.style.color = '#fff';
-        player.textContent = frame;
-    } else if (pixelMode) {
-        // ── ZERO-COPY PIXEL MODE ──
-        // Server sends raw BGR (3 bytes/pixel). We swap B↔R here.
-        const view = frame; // Already a Uint8Array
-        const data = dotImageData.data;
-        // view: [B,G,R, B,G,R, ...] → data: [R,G,B,A, R,G,B,A, ...]
-        for (let src = 0, dst = 0; src < view.length; src += 3, dst += 4) {
-            data[dst]     = view[src + 2]; // R (from BGR)
-            data[dst + 1] = view[src + 1]; // G
-            data[dst + 2] = view[src];     // B
-            // Alpha already set to 255 in buildCanvas
+        if (frameObj.isText) {
+            player.textContent = frameObj.data;
+        } else {
+            const chars = new Uint8Array(frameObj.buffer, frameObj.payloadOffset);
+            let text = '';
+            for (let r = 0; r < Stream.gridRows; r++) {
+                const start = r * Stream.gridCols;
+                for (let c = 0; c < Stream.gridCols; c++) {
+                    text += String.fromCharCode(chars[start + c]);
+                }
+                if (r < Stream.gridRows - 1) {
+                    text += '\n';
+                }
+            }
+            player.textContent = text;
         }
-        ctx.putImageData(dotImageData, 0, 0);
+    } else if (Stream.pixelMode) {
+        // ── ZERO-COPY PIXEL MODE ──
+        const view = new Uint8Array(frameObj.buffer, frameObj.payloadOffset);
+        const data = Render.dotImageData.data;
+        const dest32 = new Uint32Array(data.buffer);
+        for (let src = 0, i = 0; src < view.length; src += 3, i++) {
+            dest32[i] = (255 << 24) | (view[src] << 16) | (view[src + 1] << 8) | view[src + 2];
+        }
+        ctx.putImageData(Render.dotImageData, 0, 0);
+    } else if (Stream.renderMode === 6) {
+        const { buffer, payloadOffset } = frameObj;
+        const frameType = new Uint8Array(buffer, payloadOffset)[0];
+        if (frameType === 0x01) {
+            if (Render.useRenderWorker && Render.renderWorker) {
+                postFrameToWorker(buffer, payloadOffset, true);
+            } else {
+                const t0 = performance.now();
+                renderDeltaFrame(buffer, payloadOffset);
+                Metrics.renderMsSum += performance.now() - t0;
+                Metrics.renderMsCount += 1;
+            }
+        } else {
+            const cellOffset = payloadOffset + 1;
+            if (Render.useRenderWorker && Render.renderWorker) {
+                postFrameToWorker(buffer, cellOffset, false);
+            } else {
+                const t0 = performance.now();
+                renderColorAsciiFrame(buffer, cellOffset);
+                Metrics.renderMsSum += performance.now() - t0;
+                Metrics.renderMsCount += 1;
+            }
+        }
     } else {
         // ── COLOR MODES (2-5): atlas blit via ImageData (≤2 canvas ops) ──
-        const view = frame;
-        if (useRenderWorker && renderWorker) {
-            postFrameToWorker(view);
+        const { buffer, payloadOffset } = frameObj;
+        if (Render.useRenderWorker && Render.renderWorker) {
+            postFrameToWorker(buffer, payloadOffset, false);
         } else {
-            renderColorAsciiFrame(view);
+            const t0 = performance.now();
+            renderColorAsciiFrame(buffer, payloadOffset);
+            Metrics.renderMsSum += performance.now() - t0;
+            Metrics.renderMsCount += 1;
         }
     }
 }
@@ -470,14 +831,16 @@ function renderFrame(now) {
 // ═══════════════════════════════════════
 
 function finishStream() {
-    state = 'IDLE';
-    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    Stream.reconnecting = false;
+    Stream.reconnectRetries = 0;
+    Stream.state = 'IDLE';
+    if (Stream.ws) { Stream.ws.onclose = null; Stream.ws.close(); Stream.ws = null; }
     if (audioEl) { audioEl.pause(); audioEl.src = ''; }
-    if (renderWorker) {
-        renderWorker.terminate();
-        renderWorker = null;
-        workerBusy = false;
-        workerPendingView = null;
+    if (Render.renderWorker) {
+        Render.renderWorker.terminate();
+        Render.renderWorker = null;
+        Render.workerBusy = false;
+        Render.workerPendingFrame = null;
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     player.textContent = '';
@@ -485,8 +848,9 @@ function finishStream() {
     overlay.classList.remove('hidden');
     statusEl.textContent = 'Ready';
     statusEl.style.color = 'rgba(255,255,255,0.6)';
-    readyToRender = false;
-    frameBuffer.length = 0;
+    Stream.readyToRender = false;
+    Stream.frameBuffer.length = 0;
+    resetStreamMetrics();
 }
 
 // ── EVENT LISTENERS ──
@@ -501,6 +865,26 @@ if (volumeSlider) {
     });
 }
 
+if (colsSlider) {
+    colsSlider.value = String(Stream.streamCols);
+    if (colsValueEl) colsValueEl.textContent = String(Stream.streamCols);
+    colsSlider.addEventListener('input', () => {
+        Stream.streamCols = parseInt(colsSlider.value, 10);
+        if (colsValueEl) colsValueEl.textContent = String(Stream.streamCols);
+    });
+    colsSlider.addEventListener('change', () => {
+        applyStreamSettingChange();
+    });
+}
+
+if (aspectSelect) {
+    aspectSelect.value = Stream.streamAspect;
+    aspectSelect.addEventListener('change', () => {
+        Stream.streamAspect = aspectSelect.value;
+        applyStreamSettingChange();
+    });
+}
+
 window.addEventListener('resize', () => {
     const syncSize = (el) => {
         if (!el) return;
@@ -511,3 +895,22 @@ window.addEventListener('resize', () => {
     syncSize(player);
     syncSelectionTransform();
 });
+
+if (typeof ResizeObserver !== 'undefined') {
+    const containerObserver = new ResizeObserver(() => {
+        syncSelectionTransform();
+    });
+    containerObserver.observe(container);
+}
+
+document.addEventListener('keydown', (event) => {
+    if (event.ctrlKey && event.shiftKey && event.key === 'M') {
+        if (metricsPanel) {
+            metricsPanel.hidden = !metricsPanel.hidden;
+            updateMetricsPanel();
+        }
+    }
+});
+
+})();
+

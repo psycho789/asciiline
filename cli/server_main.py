@@ -65,9 +65,9 @@ HELP_TEXT = (
 )
 
 
-def configure_logging() -> None:
+def configure_logging(debug: bool = False) -> None:
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if debug else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
@@ -105,6 +105,14 @@ def command_loop(queue: list, loop_flag: bool, default_cols: int, default_rows: 
             os._exit(0)
 
 
+def _run_uvicorn(**kwargs: object) -> None:
+    """Wrapper so exceptions inside the server thread are logged, not silently swallowed."""
+    try:
+        uvicorn.run(**kwargs)  # type: ignore[arg-type]
+    except Exception:
+        logger.exception("uvicorn exited with an error")
+
+
 def main(argv: list[str] | None = None) -> None:
     configure_logging()
     os.system("")
@@ -135,9 +143,9 @@ def main(argv: list[str] | None = None) -> None:
     render.add_argument(
         "--mode",
         type=int,
-        choices=[1, 2, 3, 4, 5],
+        choices=[1, 2, 3, 4, 5, 6],
         default=1,
-        help="Color quality: 1=B&W  2=512c  3=32Kc  4=262Kc  5=16M Ultra",
+        help="Color quality: 1=B&W  2=512c  3=32Kc  4=262Kc  5=16M Ultra  6=Delta color",
     )
     render.add_argument(
         "--pixel",
@@ -162,8 +170,24 @@ def main(argv: list[str] | None = None) -> None:
 
     srv = parser.add_argument_group("\033[33mServer\033[0m")
     srv.add_argument("--port", type=int, default=8000, help="Server port (default: 8000)")
+    srv.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Debug mode: Python DEBUG logging + uvicorn access logs",
+    )
+
+    srv.add_argument(
+        "--render-to",
+        metavar="FILE",
+        default=None,
+        help="Pre-render video to ASCLBIN static file and exit (no server)",
+    )
 
     args = parser.parse_args(argv)
+
+    if args.debug:
+        configure_logging(debug=True)
 
     if args.pixel and args.mode == 1:
         logger.error("--pixel requires a color mode (--mode 2-5). B&W mode is text-only.")
@@ -177,12 +201,26 @@ def main(argv: list[str] | None = None) -> None:
 
     global_default_cols = args.cols if args.cols is not None else (450 if args.pixel else 200)
 
+    if args.render_to:
+        from cli.render_asclbin import render_video_to_asclbin
+
+        out = render_video_to_asclbin(
+            args.video,
+            args.render_to,
+            cols=global_default_cols,
+            rows=args.rows,
+            render_mode=args.mode,
+            pixel_mode=args.pixel,
+        )
+        logger.info("Rendered ASCLBIN → %s", out)
+        return
+
     high_fps_videos = []
     for entry in queue:
         cap = cv2.VideoCapture(entry["video"])
         if cap.isOpened():
             fps = cap.get(cv2.CAP_PROP_FPS)
-            if fps > 35:
+            if fps > 65:
                 high_fps_videos.append((entry["video"], fps))
         cap.release()
 
@@ -191,7 +229,7 @@ def main(argv: list[str] | None = None) -> None:
         for vid, fps in high_fps_videos:
             logger.warning("  - %s is %.1f FPS", vid, fps)
         logger.warning(
-            "ASCILINE decimates high FPS to ~30 FPS; performance may vary on slower CPUs."
+            "ASCILINE decimates high FPS to ~60 FPS; performance may vary on slower CPUs."
         )
 
         if sys.stdin.isatty():
@@ -240,19 +278,23 @@ def main(argv: list[str] | None = None) -> None:
             "ffmpeg not found on PATH — audio streaming (/audio) will fail at request time."
         )
 
-    app = create_app(queue=queue, loop_flag=args.loop)
+    app = create_app(queue=queue, loop_flag=args.loop, debug=args.debug)
 
     server_thread = threading.Thread(
-        target=uvicorn.run,
-        args=(app,),
+        target=_run_uvicorn,
         kwargs={
+            "app": app,
             "host": "0.0.0.0",
             "port": args.port,
             "ws_ping_interval": None,
             "ws_ping_timeout": None,
-            "log_level": "warning",
+            "ws_per_message_deflate": True,
+            "log_level": "info" if args.debug else "warning",
         },
         daemon=True,
     )
     server_thread.start()
-    command_loop(queue, args.loop, global_default_cols, args.rows)
+    if sys.stdin.isatty():
+        command_loop(queue, args.loop, global_default_cols, args.rows)
+    else:
+        server_thread.join()

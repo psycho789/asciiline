@@ -36,6 +36,9 @@
             <!-- Video Wrapper -->
             <div class="video-wrapper">
                 <div id="status" class="status">System Ready</div>
+                <div id="stream-stats" class="stream-stats" hidden>
+                    FPS —/— · NET — · GRID —×— · BUF —
+                </div>
 
                 <!-- Main Player Container -->
                 <div id="player-container">
@@ -54,7 +57,22 @@
 
                 <!-- Player Controls Bar -->
                 <div class="player-controls">
-                    <!-- Volume Control -->
+                    <div class="ctrl-group">
+                        <span class="ctrl-icon">DET_</span>
+                        <input id="cols-slider" type="range" min="120" max="800" step="10" value="280"
+                            aria-label="Grid detail (columns)">
+                        <span id="cols-value" class="ctrl-value">280</span>
+                    </div>
+                    <div class="ctrl-group ctrl-group--aspect">
+                        <span class="ctrl-icon">ASP_</span>
+                        <select id="aspect-select" aria-label="Output aspect ratio">
+                            <option value="auto">Auto (source)</option>
+                            <option value="16:9">16:9</option>
+                            <option value="4:3">4:3</option>
+                            <option value="21:9">21:9 Ultrawide</option>
+                            <option value="1:1">1:1 Square</option>
+                        </select>
+                    </div>
                     <div class="ctrl-group">
                         <span class="ctrl-icon">VOL_</span>
                         <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1">
@@ -74,6 +92,14 @@
             </p>
         </article>
     </main>
+
+    <div id="metrics-panel" class="metrics-panel" hidden>
+        <div class="metric-row">FPS <span id="m-fps">—</span></div>
+        <div class="metric-row">NET <span id="m-net">—</span></div>
+        <div class="metric-row">DROPS <span id="m-drops">—</span></div>
+        <div class="metric-row">WRKR <span id="m-wrk">—</span>%</div>
+        <div class="metric-row">REND <span id="m-rend">—</span>ms</div>
+    </div>
 
     <!-- Core Engine Logic -->
     <script src="/static/client/glyph_atlas.js"></script>

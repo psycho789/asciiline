@@ -2,17 +2,37 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from ascii_video_player2 import VideoDecoder
 from ports.frame_encoder import FrameEncoder, select_encoder
+from use_cases.effective_fps import effective_fps
 
 logger = logging.getLogger(__name__)
 
-MAX_FPS = 30
 _END_SENTINEL = object()
+
+_zmq_pub: Any | None = None
+
+
+def _init_zmq_publisher() -> None:
+    global _zmq_pub
+    endpoint = os.getenv("ASCIILINE_ZMQ_ENDPOINT", "")
+    if not endpoint:
+        return
+    try:
+        import zmq
+    except ImportError:
+        logger.warning("pyzmq not installed — ZMQ fan-out disabled")
+        return
+    ctx = zmq.Context.instance()
+    socket = ctx.socket(zmq.PUB)
+    socket.bind(endpoint)
+    _zmq_pub = socket
+    logger.info("ZMQ publisher bound at %s", endpoint)
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +42,13 @@ class StreamKey:
     rows: int
     pixel_mode: bool
     render_mode: int
+
+
+def _stream_key_bytes(key: StreamKey) -> bytes:
+    return f"{key.video_path}|{key.cols}|{key.rows}|{key.pixel_mode}|{key.render_mode}".encode()
+
+
+_init_zmq_publisher()
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +109,11 @@ class _SharedStream:
         self._task: asyncio.Task[None] | None = None
         self._start_task: asyncio.Task[None] | None = None
         self._stopped = False
+        self._encode_count: int = 0
+        self._bytes_total: int = 0
+        self._last_fps_reset: float = 0.0
+        self._encode_fps: float = 0.0
+        self._bytes_per_frame: float = 0.0
 
     def schedule_decode_start(self) -> None:
         if self._start_task is not None and not self._start_task.done():
@@ -104,20 +136,15 @@ class _SharedStream:
             skip_gray=self.key.pixel_mode,
         )
         source_fps = decoder.fps
-        if source_fps > MAX_FPS:
-            skip_n = round(source_fps / MAX_FPS)
-            effective_fps = source_fps / skip_n
-        else:
-            skip_n = 1
-            effective_fps = source_fps
+        effective, skip_n = effective_fps(source_fps)
 
         encoder = self._encoder_factory(self.key.pixel_mode, self.key.render_mode)
-        encoder.prepare(self.key.rows, self.key.cols, self.key.render_mode)
+        encoder.prepare(self.key.rows, self.key.cols, self.key.render_mode, self.key.pixel_mode)
 
         self.decoder = decoder
         self.encoder = encoder
         self.metadata = StreamMetadata(
-            effective_fps=effective_fps,
+            effective_fps=effective,
             skip_n=skip_n,
             cols=self.key.cols,
             rows=self.key.rows,
@@ -141,6 +168,8 @@ class _SharedStream:
         encoder = self.encoder
         skip_n = self.metadata.skip_n
         frame_index = 0
+        frame_t = 1.0 / self.metadata.effective_fps
+        start_time = asyncio.get_running_loop().time()
 
         try:
             while not self._stopped and self.subscribers:
@@ -153,19 +182,33 @@ class _SharedStream:
                 except StopIteration:
                     break
 
-                payload = encoder.encode(
-                    frame_index,
-                    gray_frame,
-                    bgr_frame,
-                    self.key.render_mode,
-                    self.key.pixel_mode,
-                    self.key.rows,
-                    self.key.cols,
-                )
+                payload = encoder.encode(frame_index, gray_frame, bgr_frame)
                 fan_out = payload if isinstance(payload, str) else bytes(payload)
                 self._fan_out(fan_out)
+                self._encode_count += 1
+                self._bytes_total += (
+                    len(fan_out)
+                    if isinstance(fan_out, (bytes, bytearray))
+                    else len(fan_out.encode())
+                )
+                now = asyncio.get_running_loop().time()
+                if self._last_fps_reset == 0.0:
+                    self._last_fps_reset = now
+                if now - self._last_fps_reset >= 1.0:
+                    elapsed_window = now - self._last_fps_reset
+                    self._encode_fps = self._encode_count / elapsed_window
+                    self._bytes_per_frame = self._bytes_total / max(1, self._encode_count)
+                    self._encode_count = 0
+                    self._bytes_total = 0
+                    self._last_fps_reset = now
                 frame_index += 1
-                await asyncio.sleep(0)
+
+                elapsed = asyncio.get_running_loop().time() - start_time
+                wait = (frame_index * frame_t) - elapsed
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                else:
+                    await asyncio.sleep(0)
         except Exception:
             logger.exception(
                 "Broadcast decode loop failed",
@@ -175,6 +218,17 @@ class _SharedStream:
             self._fan_out_end()
 
     def _fan_out(self, payload: bytes | str) -> None:
+        payload_bytes = payload.encode() if isinstance(payload, str) else bytes(payload)
+        if _zmq_pub is not None:
+            try:
+                import zmq
+
+                _zmq_pub.send_multipart(
+                    [_stream_key_bytes(self.key), payload_bytes],
+                    flags=zmq.NOBLOCK,
+                )
+            except zmq.Again:
+                pass
         for queue in list(self.subscribers):
             copy = payload if isinstance(payload, str) else bytes(payload)
             try:
@@ -243,6 +297,24 @@ class BroadcastHub:
             stream.schedule_decode_start()
 
             return StreamSubscription(self, key, queue, metadata)
+
+    def subscriber_count(self) -> int:
+        return sum(len(stream.subscribers) for stream in self._streams.values())
+
+    def active_stream_count(self) -> int:
+        return len(self._streams)
+
+    def last_encode_fps(self) -> float:
+        for stream in self._streams.values():
+            if stream._encode_fps > 0:
+                return stream._encode_fps
+        return 0.0
+
+    def last_bytes_per_frame(self) -> float:
+        for stream in self._streams.values():
+            if stream._bytes_per_frame > 0:
+                return stream._bytes_per_frame
+        return 0.0
 
     async def unsubscribe(self, key: StreamKey, queue: asyncio.Queue[Any]) -> None:
         async with self._lock:

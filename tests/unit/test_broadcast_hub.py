@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import struct
 from typing import ClassVar
 
 import numpy as np
@@ -86,6 +87,66 @@ async def test_two_subscribers_receive_identical_frames() -> None:
 
     await hub.unsubscribe(key, sub_a.queue)
     await hub.unsubscribe(key, sub_b.queue)
+
+
+@pytest.mark.asyncio
+async def test_decode_loop_frame_indices_are_sequential_from_zero() -> None:
+    """Hub must pace decode so embedded frame indices match playback order."""
+    hub = BroadcastHub(decoder_factory=MockDecoder, encoder_factory=pixel_encoder_factory)
+    key = StreamKey(
+        video_path="test.mp4",
+        cols=4,
+        rows=3,
+        pixel_mode=True,
+        render_mode=5,
+    )
+
+    sub = await hub.subscribe(key)
+    indices: list[int] = []
+
+    async for payload in sub:
+        indices.append(struct.unpack(">I", payload[:4])[0])
+
+    assert indices == [0, 1, 2]
+
+    await hub.unsubscribe(key, sub.queue)
+
+
+@pytest.mark.asyncio
+async def test_first_frame_index_stays_zero_when_client_connects_late() -> None:
+    """Unpaced decode would blast ahead; paced hub keeps index 0 for the first frame."""
+
+    class ManyFrameDecoder(MockDecoder):
+        def __init__(self, path: str, cols: int, rows: int, skip_gray: bool = False) -> None:
+            self.path = path
+            self.cols = cols
+            self.rows = rows
+            self.skip_gray = skip_gray
+            self.fps = 60.0
+            self._frames = [(None, np.zeros((rows, cols, 3), dtype=np.uint8)) for _ in range(30)]
+            self._index = 0
+            MockDecoder.instances.append(self)
+
+    hub = BroadcastHub(decoder_factory=ManyFrameDecoder, encoder_factory=pixel_encoder_factory)
+    key = StreamKey(
+        video_path="test.mp4",
+        cols=4,
+        rows=3,
+        pixel_mode=True,
+        render_mode=5,
+    )
+
+    sub = await hub.subscribe(key)
+    await asyncio.sleep(0.05)
+    first = await sub.__anext__()
+    index = struct.unpack(">I", first[:4])[0]
+    # Unpaced decode would deliver frame ~28+ after 50ms at 60fps; paced hub stays near 0.
+    assert index < 3
+
+    async for _ in sub:
+        pass
+
+    await hub.unsubscribe(key, sub.queue)
 
 
 @pytest.mark.asyncio

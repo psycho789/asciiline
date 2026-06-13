@@ -8,6 +8,11 @@ from adapters.fastapi_routes import create_app
 from use_cases.stream_session import StreamSession
 
 
+class _NoopProvider:
+    async def stream_entry(self, *args, **kwargs):
+        return True
+
+
 @pytest.fixture
 def captured_ffmpeg_args(monkeypatch):
     calls: list[list[str]] = []
@@ -43,11 +48,11 @@ def test_audio_selects_video_path_per_session_queue_index(captured_ffmpeg_args, 
     ]
     app = create_app(queue=queue, loop_flag=False)
 
-    session_a = StreamSession(session_registry=app.state.session_registry)
+    session_a = StreamSession(provider=_NoopProvider(), session_registry=app.state.session_registry)
     session_a.queue_index = 0
     app.state.session_registry.register(session_a)
 
-    session_b = StreamSession(session_registry=app.state.session_registry)
+    session_b = StreamSession(provider=_NoopProvider(), session_registry=app.state.session_registry)
     session_b.queue_index = 1
     app.state.session_registry.register(session_b)
 

@@ -44,7 +44,7 @@ WATCH_PATHS: list[Path] = [
     ROOT / "playlist.json",  # queue rebuilt at startup; watch triggers restart on playlist change
 ]
 
-DEFAULT_VIDEO = "videos/fg.mp4"
+DEFAULT_VIDEO = "videos/blow-the-whistle.mp4"
 PYTHON = ROOT / ".venv" / "bin" / "python"
 SERVER = ROOT / "stream_server.py"
 
@@ -58,21 +58,24 @@ def configure_logging() -> None:
     )
 
 
-def server_cmd(port: int, video: str) -> list[str]:
-    return [
+def server_cmd(port: int, video: str, *, mode: int = 3, debug: bool = False) -> list[str]:
+    cmd = [
         str(PYTHON),
         str(SERVER),
         video,
         "--mode",
-        "3",
+        str(mode),
         "--cols",
-        "220",
+        "280",
         "--vol",
         "1",
         "--loop",
         "--port",
         str(port),
     ]
+    if debug:
+        cmd.append("--debug")
+    return cmd
 
 
 def read_pid(path: Path) -> int | None:
@@ -128,12 +131,19 @@ def daemonize() -> None:
     os.close(log_fd)
 
 
-def start_server(port: int, video: str, *, detach: bool = True) -> None:
+def start_server(
+    port: int,
+    video: str,
+    *,
+    mode: int = 3,
+    detach: bool = True,
+    debug: bool = False,
+) -> None:
     if not PYTHON.exists():
         logger.error("Virtual environment not found: %s", PYTHON)
         logger.error("Run: python -m venv .venv && .venv/bin/pip install -e '.[dev]'")
         sys.exit(1)
-    cmd = server_cmd(port, video)
+    cmd = server_cmd(port, video, mode=mode, debug=debug)
     if detach:
         daemonize()
         PIDFILE.write_text(str(os.getpid()))
@@ -145,13 +155,13 @@ def start_server(port: int, video: str, *, detach: bool = True) -> None:
         PIDFILE.unlink(missing_ok=True)
 
 
-def cmd_start(port: int, video: str) -> None:
+def cmd_start(port: int, video: str, mode: int = 3, debug: bool = False) -> None:
     pid = read_pid(PIDFILE)
     if pid is not None and is_running(pid):
         logger.info("Server already running (PID %s).", pid)
         return
-    logger.info("Starting server on port %s...", port)
-    start_server(port, video, detach=True)
+    logger.info("Starting server on port %s (mode=%s)...", port, mode)
+    start_server(port, video, mode=mode, detach=True, debug=debug)
     logger.info("Server started. http://localhost:%s", port)
 
 
@@ -159,10 +169,10 @@ def cmd_stop() -> None:
     stop_pidfile(PIDFILE, "Server")
 
 
-def cmd_restart(port: int, video: str) -> None:
+def cmd_restart(port: int, video: str, mode: int = 3, debug: bool = False) -> None:
     cmd_stop()
     time.sleep(0.5)
-    cmd_start(port, video)
+    cmd_start(port, video, mode=mode, debug=debug)
 
 
 def cmd_status() -> None:
@@ -188,7 +198,7 @@ def snapshot_mtimes() -> dict[Path, float]:
     return mtimes
 
 
-def _watch_loop(port: int, video: str) -> None:
+def _watch_loop(port: int, video: str, mode: int = 3, debug: bool = False) -> None:
     """Poll WATCH_PATHS every second; restart server when any mtime changes."""
     logger.info("[watch] Watching for changes...")
     prev = snapshot_mtimes()
@@ -201,12 +211,12 @@ def _watch_loop(port: int, video: str) -> None:
             logger.info("[watch] Changed: %s — restarting server...", names)
             stop_pidfile(PIDFILE, "Server")
             time.sleep(0.5)
-            proc = subprocess.Popen(server_cmd(port, video))
+            proc = subprocess.Popen(server_cmd(port, video, mode=mode, debug=debug))
             PIDFILE.write_text(str(proc.pid))
         prev = curr
 
 
-def cmd_watch(port: int, video: str) -> None:
+def cmd_watch(port: int, video: str, mode: int = 3, debug: bool = False) -> None:
     wpid = read_pid(WATCH_PIDFILE)
     if wpid is not None and is_running(wpid):
         logger.info("Watcher already running (PID %s).", wpid)
@@ -215,7 +225,7 @@ def cmd_watch(port: int, video: str) -> None:
     if child == 0:
         os.setsid()
         WATCH_PIDFILE.write_text(str(os.getpid()))
-        _watch_loop(port, video)
+        _watch_loop(port, video, mode=mode, debug=debug)
         sys.exit(0)
     logger.info("Watcher started (PID %s). Monitoring %s paths.", child, len(WATCH_PATHS))
     logger.info("  Stop: python dev.py stop-watch")
@@ -226,13 +236,17 @@ def cmd_stop_watch() -> None:
     stop_pidfile(WATCH_PIDFILE, "Watcher")
 
 
-def cmd_logs(lines: int = 50) -> None:
+def cmd_logs(lines: int = 50, follow: bool = False) -> None:
     if not LOGFILE.exists():
         logger.info("No log file found.")
         return
-    content = LOGFILE.read_text().splitlines()
-    for line in content[-lines:]:
-        logger.info("%s", line)
+    if follow:
+        # Print existing tail then stream new lines via tail -f
+        subprocess.run(["tail", f"-{lines}", "-f", str(LOGFILE)], check=False)
+    else:
+        content = LOGFILE.read_text().splitlines()
+        for line in content[-lines:]:
+            logger.info("%s", line)
 
 
 def main() -> None:
@@ -240,6 +254,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="asciiline dev server control")
     parser.add_argument("--port", type=int, default=8001, help="Server port (default: 8001)")
     parser.add_argument("--video", default=DEFAULT_VIDEO, help="Video path (default: %(default)s)")
+    parser.add_argument(
+        "--mode",
+        type=int,
+        default=3,
+        choices=[1, 2, 3, 4, 5, 6],
+        help="Render mode passed to stream_server (default: 3)",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", default=False, help="Pass --debug to server process"
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("start", help="Start server in background")
     sub.add_parser("stop", help="Stop server")
@@ -249,22 +273,25 @@ def main() -> None:
     sub.add_parser("stop-watch", help="Stop file watcher")
     logs_p = sub.add_parser("logs", help="Show server log tail")
     logs_p.add_argument("--lines", type=int, default=50)
+    logs_p.add_argument(
+        "--follow", "-f", action="store_true", default=False, help="Follow log in real time"
+    )
     args = parser.parse_args()
 
     if args.cmd == "start":
-        cmd_start(args.port, args.video)
+        cmd_start(args.port, args.video, mode=args.mode, debug=args.debug)
     elif args.cmd == "stop":
         cmd_stop()
     elif args.cmd == "restart":
-        cmd_restart(args.port, args.video)
+        cmd_restart(args.port, args.video, mode=args.mode, debug=args.debug)
     elif args.cmd == "status":
         cmd_status()
     elif args.cmd == "watch":
-        cmd_watch(args.port, args.video)
+        cmd_watch(args.port, args.video, mode=args.mode, debug=args.debug)
     elif args.cmd == "stop-watch":
         cmd_stop_watch()
     elif args.cmd == "logs":
-        cmd_logs(args.lines)
+        cmd_logs(args.lines, follow=args.follow)
 
 
 if __name__ == "__main__":

@@ -1,11 +1,10 @@
 """
 ascii_video_player2.py
 ======================
-Modular, True Color (24-bit ANSI), zero-flicker ASCII video player.
+Core video decode and ASCII mapping for streaming and terminal playback.
 
-  - VideoDecoder    : Produces (gray, color) frame pairs from video.
-  - AsciiMapper     : Gray matrix -> ASCII character + ANSI True Color code -> String.
-  - TerminalRenderer: Main loop, FPS control, orientation detection, rendering.
+  - VideoDecoder : Produces (gray, color) frame pairs from video.
+  - AsciiMapper  : Gray matrix -> ASCII character + ANSI True Color code.
 
 Dependencies:
     pip install opencv-python numpy
@@ -13,9 +12,6 @@ Dependencies:
 
 import logging
 import os
-import shutil
-import sys
-import time
 from typing import ClassVar
 
 import cv2
@@ -63,7 +59,7 @@ class VideoDecoder:
         if not ok:
             raise StopIteration
 
-        small = cv2.resize(frame, self._size, interpolation=cv2.INTER_LINEAR)
+        small = cv2.resize(frame, self._size, interpolation=cv2.INTER_AREA)
         if self._skip_gray:
             return None, small
         gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
@@ -71,6 +67,12 @@ class VideoDecoder:
 
     def release(self):
         self._cap.release()
+
+    def __enter__(self) -> "VideoDecoder":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.release()
 
     def grab(self) -> bool:
         """Advance the video by one frame WITHOUT decoding (nearly free).
@@ -124,6 +126,15 @@ class AsciiMapper:
         self._n = len(p)
         self._lut = np.array(p, dtype="U1")
         self._qb = quantize_bits  # quantization bit shift amount
+
+    @property
+    def palette_size(self) -> int:
+        """Number of characters in the palette."""
+        return self._n
+
+    def char_lut_bytes(self) -> np.ndarray:
+        """Uint8 ndarray of ASCII ordinals for each palette character."""
+        return np.array([ord(c) for c in self._lut], dtype=np.uint8)
 
     def convert(self, gray: np.ndarray, bgr: np.ndarray) -> str:
         """
@@ -182,148 +193,11 @@ class AsciiMapper:
         return self._RESET + "\n".join(lines) + self._RESET
 
 
-# ─────────────────────────────────────────────
-#  MODULE 3 ─ TerminalRenderer
-# ─────────────────────────────────────────────
-class TerminalRenderer:
-    """
-    Manages the flow: VideoDecoder -> AsciiMapper -> stdout.
-
-    Additional features (colored version):
-      - Sets terminal background to black initially (\033[40m)
-        -> colored characters appear more prominent.
-      - Resets color with \033[0m at the end of each frame
-        -> prevents affecting subsequent terminal commands.
-    """
-
-    _CURSOR_HOME = "\033[H"
-    _HIDE_CURSOR = "\033[?25l"
-    _SHOW_CURSOR = "\033[?25h"
-    _DISABLE_WRAP = "\033[?7l"  # prevent line wrapping
-    _ENABLE_WRAP = "\033[?7h"  # restore line wrapping
-    _BLACK_BG = "\033[40m"  # black background — for contrast
-    _RESET_ALL = "\033[0m"
-    _CLEAR_SCREEN = "\033[2J"
-
-    CHAR_RATIO = 0.45  # terminal character aspect ratio correction
-
-    def __init__(
-        self,
-        path: str,
-        palette: list[str] | None = None,
-        quantize_bits: int = 0,
-        cols: int = 0,
-    ) -> None:
-        """
-        :param path:          Path to video file
-        :param palette:       Custom character palette (None -> 93 levels)
-        :param quantize_bits: Color quantization (0=full quality, 2=fast)
-        :param cols:          Fixed columns. If 0, auto-fit to terminal.
-        """
-        # ── Video metadata ────────────────────────────────────────────
-        _probe = VideoDecoder(path, 2, 2)
-        vid_w, vid_h = _probe.vid_w, _probe.vid_h
-        src_fps = _probe.fps
-        _probe.release()
-
-        # ── Terminal dimensions ────────────────────────────────────────────
-        term = shutil.get_terminal_size(fallback=(220, 50))
-        t_cols = term.columns
-        t_lines = term.lines - 2
-
-        # ── Orientation detection & aspect-ratio-preserving resizing ─────────────
-        orientation = "portrait" if vid_h > vid_w else "landscape"
-        aspect = vid_h / vid_w
-
-        if cols > 0:
-            # User provided a fixed column width
-            rows = max(1, int(cols * aspect * self.CHAR_RATIO))
-        else:
-            # Auto-fit to terminal size (with a safe maximum to prevent lag/wrapping)
-            safe_cols = min(t_cols, 160)  # Windows terminal often struggles above 160 cols
-
-            if orientation == "landscape":
-                cols = safe_cols
-                rows = max(1, int(cols * aspect * self.CHAR_RATIO))
-                if rows > t_lines:
-                    rows = t_lines
-                    cols = max(1, int(rows / (aspect * self.CHAR_RATIO)))
-            else:
-                rows = t_lines
-                cols = max(1, int(rows / (aspect * self.CHAR_RATIO)))
-                if cols > safe_cols:
-                    cols = safe_cols
-                    rows = max(1, int(cols * aspect * self.CHAR_RATIO))
-
-        # ── Calculate Center Padding ──────────────────────────────────────────────
-        self._pad_y = max(0, (t_lines - rows) // 2)
-        self._pad_x = " " * max(0, (t_cols - cols) // 2)
-
-        # ── Info screen ──────────────────────────────────────────────────
-        logger.info(self._CLEAR_SCREEN)
-        logger.info(
-            "\033[1m[ASCII Player — True Color]\033[0m\n"
-            "  Orientation : %s\n"
-            "  Video       : %sx%s\n"
-            "  ASCII       : %sx%s characters\n"
-            "  FPS         : %.1f\n"
-            "  Quantization: %s levels/channel\n"
-            "  Exit        : Ctrl+C",
-            orientation.upper(),
-            vid_w,
-            vid_h,
-            cols,
-            rows,
-            src_fps,
-            2 ** (8 - quantize_bits),
-        )
-        time.sleep(2.0)
-
-        self._decoder = VideoDecoder(path, cols, rows)
-        self._mapper = AsciiMapper(palette, quantize_bits)
-        self._fps = self._decoder.fps
-        self._frame_t = 1.0 / self._fps
-
-    def play(self) -> None:
-        """Main playback loop."""
-        stdout = sys.stdout
-
-        stdout.write(self._DISABLE_WRAP + self._HIDE_CURSOR + self._BLACK_BG)
-        stdout.flush()
-
-        try:
-            for gray_frame, bgr_frame in self._decoder:
-                t0 = time.perf_counter()
-
-                ascii_frame = self._mapper.convert(gray_frame, bgr_frame)
-
-                # Apply padding for centering
-                if self._pad_x:
-                    ascii_frame = self._pad_x + ascii_frame.replace("\n", "\n" + self._pad_x)
-                if self._pad_y > 0:
-                    ascii_frame = ("\n" * self._pad_y) + ascii_frame
-
-                stdout.write(self._CURSOR_HOME + ascii_frame)
-                stdout.flush()
-
-                wait = self._frame_t - (time.perf_counter() - t0)
-                if wait > 0:
-                    time.sleep(wait)
-
-        except KeyboardInterrupt:
-            pass
-
-        finally:
-            stdout.write(self._ENABLE_WRAP + self._SHOW_CURSOR + self._RESET_ALL + "\n")
-            stdout.flush()
-            self._decoder.release()
-
-
-# ─────────────────────────────────────────────
-#  ENTRY POINT
-# ─────────────────────────────────────────────
 if __name__ == "__main__":
     import argparse
+    import sys
+
+    from cli.terminal_renderer import TerminalRenderer
 
     logging.basicConfig(level=logging.INFO)
 

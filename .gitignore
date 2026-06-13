@@ -21,3 +21,6 @@ mynotes.txt
 
 # Old versions
 *-previous-ver-*
+
+# Local git worktrees (isolated checkouts for experiments/baselines)
+.worktree/

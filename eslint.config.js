@@ -5,6 +5,8 @@ const browserGlobals = {
     document: "readonly",
     navigator: "readonly",
     sessionStorage: "readonly",
+    localStorage: "readonly",
+    URLSearchParams: "readonly",
     location: "readonly",
     WebSocket: "readonly",
     TextDecoder: "readonly",
@@ -15,6 +17,8 @@ const browserGlobals = {
     Worker: "readonly",
     OffscreenCanvas: "readonly",
     ImageData: "readonly",
+    TextEncoder: "readonly",
+    ResizeObserver: "readonly",
 };
 
 const workerGlobals = {

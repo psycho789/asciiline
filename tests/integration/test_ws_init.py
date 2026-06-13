@@ -57,3 +57,25 @@ def test_audio_session_not_found():
     with TestClient(app) as client:
         resp = client.get("/audio?session=nonexistent-id")
         assert resp.status_code == 404
+
+
+def test_ws_cols_and_aspect_query_override(tiny_video):
+    queue = [
+        {
+            "video": tiny_video,
+            "mode": 3,
+            "vol": 0,
+            "pixel": False,
+            "cols": 8,
+            "rows": 0,
+        }
+    ]
+    app = create_app(queue=queue, loop_flag=False)
+
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws?cols=80&aspect=16:9") as ws:
+            init_msg = ws.receive_text()
+            assert init_msg.startswith("INIT:")
+            parts = init_msg.split(":")
+            assert int(parts[3]) == 80
+            assert int(parts[4]) == 22

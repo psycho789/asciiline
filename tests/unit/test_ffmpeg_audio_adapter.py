@@ -65,9 +65,13 @@ async def test_vol_zero_returns_without_spawning(monkeypatch) -> None:
     from adapters.fastapi_routes import create_app
     from use_cases.stream_session import StreamSession
 
+    class _NoopProvider:
+        async def stream_entry(self, *args, **kwargs):
+            return True
+
     queue = [{"video": "video.mp4", "mode": 3, "vol": 0, "pixel": False, "cols": 8, "rows": 4}]
     app = create_app(queue=queue, loop_flag=False)
-    session = StreamSession()
+    session = StreamSession(provider=_NoopProvider())
     app.state.session_registry.register(session)
 
     with TestClient(app) as client:

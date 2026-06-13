@@ -3,7 +3,12 @@
 /**
  * Glyph atlas builder and color-ASCII compositor.
  * Shared by app.js (main thread) and render_worker.js (Web Worker).
+ *
+ * Wrapped in an IIFE so internal function declarations stay function-scoped
+ * and do not pollute the shared global lexical scope, which would cause a
+ * SyntaxError when app.js destructures the same names from AsciilineGlyphAtlas.
  */
+(function () {
 
 const GLYPH_LUT_SIZE = 128;
 
@@ -55,31 +60,24 @@ function buildGlyphAtlas(charWidth, charHeight, charLut) {
 }
 
 function fillBackground(destData, r, g, b) {
-    for (let i = 0; i < destData.length; i += 4) {
-        destData[i] = r;
-        destData[i + 1] = g;
-        destData[i + 2] = b;
-        destData[i + 3] = 255;
-    }
+    const packed = (255 << 24) | (b << 16) | (g << 8) | r;
+    new Uint32Array(destData.buffer).fill(packed);
 }
 
-function stampGlyph(destData, destWidth, atlas, charCode, destX, destY, r, g, b) {
+function stampGlyph(destData, dest32, destWidth, atlas, charCode, destX, destY, r, g, b) {
     const { pixels: atlasPixels, width: atlasWidth, cellW, cellH, atlasCols } = atlas;
     const glyphCol = charCode % atlasCols;
     const glyphRow = Math.floor(charCode / atlasCols);
     const srcX0 = glyphCol * cellW;
     const srcY0 = glyphRow * cellH;
+    const packed = (255 << 24) | (b << 16) | (g << 8) | r;
 
     for (let dy = 0; dy < cellH; dy++) {
         const destRow = destY + dy;
         for (let dx = 0; dx < cellW; dx++) {
             const srcIdx = ((srcY0 + dy) * atlasWidth + (srcX0 + dx)) * 4;
             if (atlasPixels[srcIdx] > 128) {
-                const destIdx = (destRow * destWidth + (destX + dx)) * 4;
-                destData[destIdx] = r;
-                destData[destIdx + 1] = g;
-                destData[destIdx + 2] = b;
-                destData[destIdx + 3] = 255;
+                dest32[destRow * destWidth + (destX + dx)] = packed;
             }
         }
     }
@@ -101,6 +99,7 @@ function compositeColorAsciiFrame(options) {
     } = options;
 
     fillBackground(destData, 5, 5, 5);
+    const dest32 = new Uint32Array(destData.buffer);
 
     let col = 0;
     let row = 0;
@@ -111,7 +110,7 @@ function compositeColorAsciiFrame(options) {
         const b = view[idx + 3];
         const destX = xPos ? Math.round(xPos[col]) : Math.round(col * charWidth);
         const destY = yPos ? Math.round(yPos[row]) : Math.round(row * charHeight);
-        stampGlyph(destData, width, atlas, ch, destX, destY, r, g, b);
+        stampGlyph(destData, dest32, width, atlas, ch, destX, destY, r, g, b);
         selectionBuffer[row * selectionRowStride + col] = ch;
         col++;
         if (col >= gridCols) {
@@ -121,13 +120,54 @@ function compositeColorAsciiFrame(options) {
     }
 }
 
+function applyDeltaFrame(options) {
+    const {
+        deltaView,
+        gridCols,
+        width,
+        charWidth,
+        charHeight,
+        atlas,
+        destData,
+        selectionBuffer,
+        selectionRowStride,
+        xPos,
+        yPos,
+    } = options;
+
+    const dest32 = new Uint32Array(destData.buffer);
+    const changedCount =
+        (deltaView[1] << 24) |
+        (deltaView[2] << 16) |
+        (deltaView[3] << 8) |
+        deltaView[4];
+
+    let off = 5;
+    for (let i = 0; i < changedCount; i++, off += 6) {
+        const cellIdx = (deltaView[off] << 8) | deltaView[off + 1];
+        const ch = deltaView[off + 2];
+        const r = deltaView[off + 3];
+        const g = deltaView[off + 4];
+        const b = deltaView[off + 5];
+        const col = cellIdx % gridCols;
+        const row = Math.floor(cellIdx / gridCols);
+        const destX = xPos ? Math.round(xPos[col]) : Math.round(col * charWidth);
+        const destY = yPos ? Math.round(yPos[row]) : Math.round(row * charHeight);
+        stampGlyph(destData, dest32, width, atlas, ch, destX, destY, r, g, b);
+        selectionBuffer[row * selectionRowStride + col] = ch;
+    }
+}
+
 const AsciilineGlyphAtlas = {
     GLYPH_LUT_SIZE,
     buildCharLut,
     buildGlyphAtlas,
     compositeColorAsciiFrame,
+    applyDeltaFrame,
 };
 
 if (typeof self !== 'undefined') {
     self.AsciilineGlyphAtlas = AsciilineGlyphAtlas;
 }
+
+})();
