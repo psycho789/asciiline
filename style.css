@@ -16,7 +16,7 @@
     --muted: #8a8a96;
     --studio-header-h: 56px;
     --control-pane-w: min(460px, 44vw);
-    --fx-panel-h: 196px;
+    --fx-panel-h: 236px;
 }
 
 * {
@@ -1031,9 +1031,12 @@ body {
 .fx-panel-controls-slot {
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     margin-top: 4px;
     position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 243, 255, 0.25) transparent;
 }
 
 .fx-panel-empty {
@@ -1135,7 +1138,7 @@ body {
     line-height: 1.45;
     margin: 0;
     font-weight: 300;
-    height: 2.9em;
+    height: 2.2em;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -1193,9 +1196,11 @@ body {
 }
 
 .fx-advanced {
-    margin-top: 6px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding-top: 2px;
+    margin: 0 0 6px;
+    border: 1px solid rgba(0, 243, 255, 0.12);
+    border-radius: 6px;
+    padding: 2px 8px 4px;
+    background: rgba(0, 243, 255, 0.03);
 }
 
 .fx-advanced summary {
@@ -1335,17 +1340,38 @@ body {
     -webkit-backdrop-filter: blur(14px) saturate(2);
 }
 #player-container.fx-shred {
-    animation: shred-clip 3.5s ease-in-out infinite;
     overflow: hidden;
 }
-@keyframes shred-clip {
-    0%   { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
-    15%  { clip-path: polygon(0 0, 96% 3%, 100% 100%, 4% 96%); }
-    30%  { clip-path: polygon(3% 0, 100% 2%, 97% 100%, 0 97%); }
-    50%  { clip-path: polygon(0 4%, 98% 0, 100% 96%, 2% 100%); }
-    70%  { clip-path: polygon(2% 0, 100% 3%, 98% 100%, 0 98%); }
-    85%  { clip-path: polygon(0 0, 97% 4%, 100% 97%, 3% 100%); }
-    100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+#player-container.fx-shred #ascii-canvas {
+    animation: shred-warp 2.2s ease-in-out infinite;
+    transform-origin: center center;
+    will-change: transform, clip-path;
+}
+@keyframes shred-warp {
+    0%, 100% {
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+        transform: skew(0deg) scale(1);
+    }
+    18% {
+        clip-path: polygon(0 0, 90% 8%, 100% 100%, 8% 88%);
+        transform: skew(-3deg) scale(1.03);
+    }
+    36% {
+        clip-path: polygon(6% 0, 100% 4%, 94% 100%, 0 92%);
+        transform: skew(2.5deg) scale(0.97);
+    }
+    54% {
+        clip-path: polygon(0 10%, 92% 0, 100% 90%, 6% 100%);
+        transform: skew(-2deg) scale(1.02);
+    }
+    72% {
+        clip-path: polygon(8% 2%, 100% 0, 92% 98%, 0 100%);
+        transform: skew(3deg) scale(0.98);
+    }
+    88% {
+        clip-path: polygon(0 4%, 96% 6%, 100% 96%, 4% 100%);
+        transform: skew(-1.5deg) scale(1.01);
+    }
 }
 #player-container.fx-decay #ascii-canvas { filter: brightness(0.94) sepia(0.1); }
 #player-container.fx-plasma #ascii-canvas { filter: url(#plasma-filter); }
@@ -1445,7 +1471,7 @@ body {
 @media (max-width: 900px) {
     :root {
         --control-pane-w: min(400px, 48vw);
-        --fx-panel-h: 188px;
+        --fx-panel-h: 224px;
     }
 
     .fx-category-grid {

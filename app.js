@@ -107,6 +107,11 @@ const BRAILLE_LUT = (() => {
     return dots.map((d) => String.fromCharCode(0x2800 + d));
 })();
 
+const AUDIO_EQ_CONTROLS = [
+    { id: 'audio-bass-eq', label: 'Bass EQ', min: -12, max: 12, step: 1, def: 4, unit: 'dB' },
+    { id: 'audio-treble-eq', label: 'Treble EQ', min: -12, max: 12, step: 1, def: 0, unit: 'dB' },
+];
+
 const FX_PRESETS = {
     clean: {
         label: 'CLEAN',
@@ -271,8 +276,7 @@ const FX_PRESETS = {
         advancedControls: [
             { id: 'wave-bass-drive', label: 'Sub bass hit', min: 0.0, max: 1.0, step: 0.05, def: 0.75 },
             { id: 'wave-bounce',     label: 'Bounce hang',  min: 0.0, max: 1.0, step: 0.05, def: 0.6 },
-            { id: 'audio-bass-eq',   label: 'Bass EQ',      min: -12, max: 12, step: 1, def: 4, unit: 'dB' },
-            { id: 'audio-treble-eq', label: 'Treble EQ',    min: -12, max: 12, step: 1, def: 0, unit: 'dB' },
+            ...AUDIO_EQ_CONTROLS,
         ],
         css: 'fx-soundwave fx-ripple',
         asciiOnly: true,
@@ -287,6 +291,10 @@ const FX_PRESETS = {
         audioLevel: true,
         controls: [
             { id: 'beat-power', label: 'Beat power', min: 0.3, max: 6.0, step: 0.1, def: 1.2 },
+        ],
+        advancedControls: [
+            { id: 'beat-sensitivity', label: 'Kick sensitivity', min: 0.0, max: 1.0, step: 0.05, def: 0.8 },
+            ...AUDIO_EQ_CONTROLS,
         ],
         css: 'fx-beatstrike fx-ripple',
         asciiOnly: true,
@@ -897,6 +905,10 @@ function effectiveFx() {
     return activeFx;
 }
 
+function fxUsesRippleEngine(fx) {
+    return fx === 'ripple' || fx === 'auto-ripple' || fx === 'beatstrike' || fx === 'soundwave';
+}
+
 function resetFxState() {
     removeTilt3d();
     container.style.clipPath = '';
@@ -1045,9 +1057,12 @@ function buildFxPanel(id) {
         fxPanelBadge.hidden = !isAsciiOnly && !isPixelOnly;
     }
 
-    // Description — use fullDesc first, fall back to hint
+    // Description — short hint when sliders are shown so controls + Advanced fit
     if (fxPanelDesc) {
         let body = preset.fullDesc || preset.hint || preset.tip || '';
+        if (id !== 'clean' && (preset.controls?.length || preset.advancedControls?.length)) {
+            body = preset.hint || preset.tip || body;
+        }
         if (id !== 'clean' && pixelMode && preset.asciiOnly && !preset.pixelOk) {
             body = 'This effect needs the ASCII character grid. Switch to ASCII mode in the panel header.';
         } else if (id !== 'clean' && !pixelMode && preset.pixelOnly) {
@@ -1102,21 +1117,21 @@ function buildFxPanel(id) {
         fxPanelControls.appendChild(barLabel);
     }
 
-    if (preset.controls) {
-        preset.controls.forEach((ctrl) => appendFxControlRow(ctrl, fxPanelControls));
-    }
-
     if (preset.advancedControls?.length) {
         const advanced = document.createElement('details');
         advanced.className = 'fx-advanced';
         const summary = document.createElement('summary');
-        summary.textContent = preset.advancedLabel || 'Advanced';
+        summary.textContent = preset.advancedLabel || 'Advanced — bass / EQ';
         advanced.appendChild(summary);
         const inner = document.createElement('div');
         inner.className = 'fx-advanced-inner';
         preset.advancedControls.forEach((ctrl) => appendFxControlRow(ctrl, inner, { compact: true }));
         advanced.appendChild(inner);
         fxPanelControls.appendChild(advanced);
+    }
+
+    if (preset.controls) {
+        preset.controls.forEach((ctrl) => appendFxControlRow(ctrl, fxPanelControls));
     }
 
     const hasTunables = Boolean(
@@ -1308,6 +1323,10 @@ function updateAudioEq() {
     trebleFilter.gain.value = fxParams['audio-treble-eq'] ?? 0;
 }
 
+function ensureAudioAnalyser() {
+    if (!audioCtx && state === 'PLAYING' && video) initAudioAnalyser();
+}
+
 function initAudioAnalyser() {
     if (audioCtx || !video) return;
     try {
@@ -1339,6 +1358,7 @@ const AUDIO_REACTIVE_FX = new Set(['resonate', 'soundwave', 'beatstrike', 'spect
 function updateAudioEnergy(now) {
     const fx = effectiveFx();
     const playing = state === 'PLAYING' && !video.paused;
+    if (playing) ensureAudioAnalyser();
 
     if (playing && analyser) {
         if (!audioFreqData || audioFreqData.length !== analyser.frequencyBinCount)
@@ -1365,7 +1385,8 @@ function updateAudioEnergy(now) {
         }
         audioRms = Math.sqrt(rmsSum / audioWaveform.length);
 
-        const bassDrive = fx === 'soundwave' ? fxParam('wave-bass-drive', 0.75) : 0;
+        const bassDrive = fx === 'soundwave' ? fxParam('wave-bass-drive', 0.75)
+            : fx === 'beatstrike' ? fxParam('beat-sensitivity', 0.8) : 0;
         const beatSignal = audioSubBass * (0.45 + bassDrive * 0.95)
             + audioBass * Math.max(0.15, 1 - bassDrive * 0.55);
 
@@ -1376,9 +1397,15 @@ function updateAudioEnergy(now) {
         for (let i = 0; i < audioBeatHistory.length; i++) histAvg += audioBeatHistory[i];
         histAvg /= audioBeatHistory.length;
         const burstParam = fx === 'soundwave' ? fxParam('wave-burst', 0.45) : 0;
-        const beatGap = 220 - burstParam * 100 - bassDrive * 40;
-        const beatThresh = 0.1 - burstParam * 0.04 - bassDrive * 0.05;
-        const beatRatio = 1.28 - burstParam * 0.18 - bassDrive * 0.22;
+        const beatGap = fx === 'beatstrike'
+            ? 170 - bassDrive * 85
+            : 220 - burstParam * 100 - bassDrive * 40;
+        const beatThresh = fx === 'beatstrike'
+            ? 0.06 - bassDrive * 0.035
+            : 0.1 - burstParam * 0.04 - bassDrive * 0.05;
+        const beatRatio = fx === 'beatstrike'
+            ? 1.18 - bassDrive * 0.28
+            : 1.28 - burstParam * 0.18 - bassDrive * 0.22;
         audioBeat = beatSignal > histAvg * beatRatio
             && beatSignal > beatThresh
             && (now - lastBeatAt) > beatGap;
@@ -1496,7 +1523,7 @@ function applyCorrupt(charCode, row, col) {
 
 function rippleOverride(charCode, col, row, now) {
     const fx = effectiveFx();
-    if (fx !== 'ripple' && fx !== 'auto-ripple') return charCode;
+    if (!fxUsesRippleEngine(fx)) return charCode;
     ripples = ripples.filter((r) => now - r.startTime < (r.duration ?? 500));
     for (const rip of ripples) {
         const age = now - rip.startTime;
@@ -3002,7 +3029,7 @@ function processFrame(now) {
         const pct = base + (audioRms * 50 + audioBass * 18) * breathMul;
         container.style.clipPath =
             `ellipse(${Math.min(pct, 92).toFixed(1)}% ${Math.min(pct * 0.72, 68).toFixed(1)}% at 50% 50%)`;
-    } else if (container.style.clipPath && fxNow !== 'pulse-clip') {
+    } else if (container.style.clipPath && fxNow !== 'pulse-clip' && fxNow !== 'shred') {
         container.style.clipPath = '';
     }
 
