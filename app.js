@@ -27,14 +27,53 @@ const QB_MAP = { 5: 0, 4: 2, 3: 3, 2: 5 };
 const CORRUPT_CHARS = '$#@!?0123456789ABCDEF';
 const WAVE_CHARS = '~\\/-|';
 const AUTO_RIPPLE_CHAR_SETS = [
-    '~\\/-|',
-    '*+.`',
-    '#@!$%',
-    '><^v',
-    '()[]{',
-    'xX+=-',
+    '~\\/-|',       // wave
+    '\u2588\u2593\u2592\u2591',   // block fill ░▒▓█
+    '\u2591\u2592\u2593',         // block decay
+    '#@!$%',        // heavy glyph
+    '\u00b7\u2218\u25CB\u25CE',   // expanding circles ·∘○◎
+    '><^v',         // arrows
+    '01',           // binary
+    'ASCILINE',     // brand
+    '+\u00d7*',     // cross/star
+    '([{}])',       // brackets
 ];
-const AUTO_RIPPLE_PATTERNS = ['nova', 'scatter', 'sweep', 'rain', 'quake', 'converge', 'chain', 'supernova'];
+
+// Weighted pattern pool — higher weight = fires more often
+const AUTO_RIPPLE_POOL = [
+    { name: 'nova',         weight: 3 },
+    { name: 'scatter',      weight: 4 },
+    { name: 'sweep',        weight: 3 },
+    { name: 'rain',         weight: 3 },
+    { name: 'quake',        weight: 3 },
+    { name: 'converge',     weight: 2 },
+    { name: 'chain',        weight: 2 },
+    { name: 'supernova',    weight: 2 },
+    { name: 'tsunami',      weight: 2 },
+    { name: 'shatter',      weight: 1 },
+    { name: 'interference', weight: 2 },
+    { name: 'pulse_storm',  weight: 1 },
+    { name: 'strobe_flood', weight: 1 },
+    { name: 'bullseye',     weight: 2 },
+    { name: 'spiral',       weight: 2 },
+    { name: 'snake',        weight: 2 },
+    { name: 'cross',        weight: 2 },
+    { name: 'invaders',     weight: 1 },
+    { name: 'lightning',    weight: 2 },
+    { name: 'megaburst',    weight: 1 },
+    { name: 'matrix_col',   weight: 2 },
+    { name: 'heartbeat',    weight: 2 },
+];
+
+function pickAutoRipplePattern() {
+    const total = AUTO_RIPPLE_POOL.reduce((s, p) => s + p.weight, 0);
+    let r = Math.random() * total;
+    for (const p of AUTO_RIPPLE_POOL) {
+        r -= p.weight;
+        if (r <= 0) return p.name;
+    }
+    return AUTO_RIPPLE_POOL[0].name;
+}
 const DOT_CHAR = 0xb7; // ·
 const BLOCK_CHAR = 0x2588; // █
 
@@ -250,7 +289,6 @@ let nextCorruptAt = 0;
 let ripples = [];
 let autoRipplePendingFires = [];
 let autoRippleNextAt = 0;
-let autoRipplePatternCursor = 0;
 
 // HOLE state
 let holeX = 0, holeY = 0, holePulse = 0;
@@ -589,85 +627,306 @@ function fireRippleAt(col, row, now, opts) {
 
 function scheduleAutoRipplePattern(now) {
     if (gridCols === 0 || gridRows === 0) return;
-    const pattern = AUTO_RIPPLE_PATTERNS[autoRipplePatternCursor % AUTO_RIPPLE_PATTERNS.length];
-    autoRipplePatternCursor++;
+    const pattern = pickAutoRipplePattern();
 
-    const rndCol = () => 1 + Math.floor(Math.random() * (gridCols - 2));
-    const rndRow = () => 1 + Math.floor(Math.random() * (gridRows - 2));
-    const rndCs = () => AUTO_RIPPLE_CHAR_SETS[Math.floor(Math.random() * AUTO_RIPPLE_CHAR_SETS.length)];
-    const rndSpd = () => 0.06 + Math.random() * 0.22;
-    const rndW = () => 1.0 + Math.random() * 2.5;
-
-    const queue = autoRipplePendingFires;
+    const q = autoRipplePendingFires;
+    const rC  = () => 1 + Math.floor(Math.random() * (gridCols - 2));
+    const rR  = () => 1 + Math.floor(Math.random() * (gridRows - 2));
+    const rCs = () => AUTO_RIPPLE_CHAR_SETS[Math.floor(Math.random() * AUTO_RIPPLE_CHAR_SETS.length)];
+    const rSpd= () => 0.06 + Math.random() * 0.22;
+    const rW  = () => 1.0 + Math.random() * 2.5;
+    const clampC = (c) => Math.max(1, Math.min(gridCols - 2, Math.round(c)));
+    const clampR = (r) => Math.max(1, Math.min(gridRows - 2, Math.round(r)));
 
     switch (pattern) {
+
+        // ── EXISTING (tightened) ──────────────────────────────
         case 'nova':
-            queue.push({ fireAt: now, col: rndCol(), row: rndRow(), speed: 0.18 + Math.random() * 0.12, duration: 700, width: 2.5 + Math.random() * 1.5, charSet: rndCs() });
+            q.push({ fireAt: now, col: rC(), row: rR(),
+                speed: 0.18 + Math.random() * 0.12, duration: 900,
+                width: 3 + Math.random() * 2, charSet: rCs() });
             break;
 
         case 'scatter': {
-            const count = 5 + Math.floor(Math.random() * 7);
-            for (let i = 0; i < count; i++) queue.push({ fireAt: now, col: rndCol(), row: rndRow(), speed: rndSpd(), duration: 400 + Math.random() * 400, width: rndW(), charSet: rndCs() });
+            const n = 6 + Math.floor(Math.random() * 10);
+            const cs = rCs();
+            for (let i = 0; i < n; i++)
+                q.push({ fireAt: now + i * 40, col: rC(), row: rR(), speed: rSpd(),
+                    duration: 400 + Math.random() * 500, width: rW(), charSet: cs });
             break;
         }
 
         case 'sweep': {
-            const vertical = Math.random() < 0.5;
-            const fixed = vertical ? rndCol() : rndRow();
-            const count = 8 + Math.floor(Math.random() * 6);
-            const cs = rndCs();
-            for (let i = 0; i < count; i++) {
-                const pos = Math.floor((i / count) * (vertical ? gridRows : gridCols));
-                queue.push({ fireAt: now + i * 65, col: vertical ? fixed : pos, row: vertical ? pos : fixed, speed: rndSpd(), duration: 500, width: 1.5, charSet: cs });
+            const vert = Math.random() < 0.5;
+            const fixed = vert ? rC() : rR();
+            const n = 10 + Math.floor(Math.random() * 8);
+            const cs = rCs();
+            for (let i = 0; i < n; i++) {
+                const pos = Math.floor((i / n) * (vert ? gridRows : gridCols));
+                q.push({ fireAt: now + i * 50, col: vert ? fixed : pos, row: vert ? pos : fixed,
+                    speed: rSpd(), duration: 550, width: 1.8, charSet: cs });
             }
             break;
         }
 
         case 'rain': {
-            const count = 12 + Math.floor(Math.random() * 12);
-            for (let i = 0; i < count; i++) queue.push({ fireAt: now + i * 110 + Math.random() * 55, col: rndCol(), row: rndRow(), speed: 0.06 + Math.random() * 0.08, duration: 350, width: 1.2, charSet: '~`.' });
+            const n = 14 + Math.floor(Math.random() * 14);
+            for (let i = 0; i < n; i++)
+                q.push({ fireAt: now + i * 90 + Math.random() * 60, col: rC(), row: rR(),
+                    speed: 0.05 + Math.random() * 0.07, duration: 400, width: 1.3, charSet: '~`.' });
             break;
         }
 
         case 'quake': {
-            const ec = rndCol();
-            const er = rndRow();
-            const count = 12 + Math.floor(Math.random() * 10);
-            for (let i = 0; i < count; i++) queue.push({ fireAt: now + Math.random() * 450, col: ec + Math.round((Math.random() - 0.5) * 10), row: er + Math.round((Math.random() - 0.5) * 6), speed: rndSpd(), duration: 300 + Math.random() * 300, width: 1.0 + Math.random() * 1.5, charSet: '#@!$%' });
+            const ec = rC(), er = rR();
+            const n = 14 + Math.floor(Math.random() * 12);
+            for (let i = 0; i < n; i++)
+                q.push({ fireAt: now + Math.random() * 600,
+                    col: clampC(ec + (Math.random() - 0.5) * 14),
+                    row: clampR(er + (Math.random() - 0.5) * 8),
+                    speed: rSpd(), duration: 350 + Math.random() * 350,
+                    width: 1.0 + Math.random() * 2.0, charSet: '#@!$%' });
             break;
         }
 
         case 'converge': {
-            const corners = [
-                { col: 1, row: 1 },
-                { col: gridCols - 2, row: 1 },
-                { col: 1, row: gridRows - 2 },
-                { col: gridCols - 2, row: gridRows - 2 },
-            ];
-            const cs = rndCs();
-            corners.forEach((pt, i) => queue.push({ fireAt: now + i * 45, col: pt.col, row: pt.row, speed: 0.14 + Math.random() * 0.06, duration: 650, width: 2.0, charSet: cs }));
+            const cs = rCs();
+            [[1,1],[gridCols-2,1],[1,gridRows-2],[gridCols-2,gridRows-2]].forEach(([c,r],i) =>
+                q.push({ fireAt: now + i * 55, col: c, row: r,
+                    speed: 0.12 + Math.random() * 0.08, duration: 800, width: 2.5, charSet: cs }));
             break;
         }
 
         case 'chain': {
-            const oc = rndCol();
-            const or_ = rndRow();
-            queue.push({ fireAt: now, col: oc, row: or_, speed: 0.22, duration: 450, width: 2.8, charSet: AUTO_RIPPLE_CHAR_SETS[0] });
+            const oc = rC(), or_ = rR();
+            q.push({ fireAt: now, col: oc, row: or_, speed: 0.22, duration: 500, width: 3.0, charSet: AUTO_RIPPLE_CHAR_SETS[0] });
             for (let i = 0; i < 6; i++) {
-                const ang = (i / 6) * Math.PI * 2;
-                queue.push({ fireAt: now + 300, col: oc + Math.round(Math.cos(ang) * 12), row: or_ + Math.round(Math.sin(ang) * 7), speed: rndSpd(), duration: 420, width: rndW(), charSet: rndCs() });
+                const a = (i/6)*Math.PI*2;
+                q.push({ fireAt: now+300, col: clampC(oc+Math.cos(a)*13), row: clampR(or_+Math.sin(a)*7),
+                    speed: rSpd(), duration: 450, width: rW(), charSet: rCs() });
             }
             for (let i = 0; i < 12; i++) {
-                const ang = (i / 12) * Math.PI * 2;
-                queue.push({ fireAt: now + 600, col: oc + Math.round(Math.cos(ang) * 22), row: or_ + Math.round(Math.sin(ang) * 13), speed: rndSpd(), duration: 380, width: rndW(), charSet: rndCs() });
+                const a = (i/12)*Math.PI*2;
+                q.push({ fireAt: now+650, col: clampC(oc+Math.cos(a)*24), row: clampR(or_+Math.sin(a)*14),
+                    speed: rSpd(), duration: 400, width: rW(), charSet: rCs() });
             }
             break;
         }
 
         case 'supernova': {
-            const sc = rndCol();
-            const sr = rndRow();
-            for (let i = 0; i < 5; i++) queue.push({ fireAt: now + i * 90, col: sc, row: sr, speed: 0.10 + i * 0.06, duration: 650, width: 1.8 + i * 0.6, charSet: AUTO_RIPPLE_CHAR_SETS[i % AUTO_RIPPLE_CHAR_SETS.length] });
+            const sc = rC(), sr = rR();
+            for (let i = 0; i < 8; i++)
+                q.push({ fireAt: now + i * 70, col: sc, row: sr,
+                    speed: 0.06 + i * 0.055, duration: 800,
+                    width: 2.2 + i * 0.5, charSet: AUTO_RIPPLE_CHAR_SETS[i % AUTO_RIPPLE_CHAR_SETS.length] });
+            break;
+        }
+
+        // ── NEW: MACRO SCALE ──────────────────────────────────
+
+        // TSUNAMI — a thick wall of block chars sweeps the entire frame
+        case 'tsunami': {
+            const cs = '\u2588\u2593\u2592\u2591'; // █▓▒░
+            const fromRight = Math.random() < 0.5;
+            const edgeC = fromRight ? gridCols - 1 : 0;
+            for (let r = 0; r < gridRows; r += 2)
+                q.push({ fireAt: now, col: edgeC, row: r,
+                    speed: 0.020, duration: 8000, width: 10.0, charSet: cs });
+            break;
+        }
+
+        // SHATTER — grid of simultaneous ring origins (glass breaking)
+        case 'shatter': {
+            const cs = '\u2592\u2591\u2588\u2593'; // mixed blocks
+            const nx = Math.max(2, Math.floor(gridCols / 12));
+            const ny = Math.max(2, Math.floor(gridRows / 6));
+            for (let ix = 0; ix <= nx; ix++)
+                for (let iy = 0; iy <= ny; iy++) {
+                    const delay = Math.random() * 120;
+                    q.push({ fireAt: now + delay,
+                        col: clampC((ix/nx)*(gridCols-2)+1),
+                        row: clampR((iy/ny)*(gridRows-2)+1),
+                        speed: 0.12 + Math.random() * 0.08, duration: 900,
+                        width: 1.4, charSet: cs });
+                }
+            break;
+        }
+
+        // INTERFERENCE — two slow opposing waves that meet in the middle
+        case 'interference': {
+            const cs = rCs();
+            const mr = Math.floor(gridRows / 2);
+            const spd = 0.028 + Math.random() * 0.018;
+            const w = 3.5 + Math.random() * 2.0;
+            q.push({ fireAt: now, col: 0, row: mr, speed: spd, duration: 6000, width: w, charSet: cs });
+            q.push({ fireAt: now, col: gridCols-1, row: mr, speed: spd, duration: 6000, width: w, charSet: cs });
+            // vertical version
+            if (Math.random() < 0.4) {
+                const mc = Math.floor(gridCols / 2);
+                q.push({ fireAt: now+200, col: mc, row: 0, speed: spd, duration: 6000, width: w, charSet: rCs() });
+                q.push({ fireAt: now+200, col: mc, row: gridRows-1, speed: spd, duration: 6000, width: w, charSet: rCs() });
+            }
+            break;
+        }
+
+        // PULSE_STORM — 25 slow overlapping wide waves drowning the whole frame
+        case 'pulse_storm': {
+            const n = 22 + Math.floor(Math.random() * 12);
+            for (let i = 0; i < n; i++)
+                q.push({ fireAt: now + i * 220,
+                    col: rC(), row: rR(),
+                    speed: 0.022 + Math.random() * 0.035,
+                    duration: 4000 + Math.random() * 2000,
+                    width: 3.0 + Math.random() * 4.0,
+                    charSet: AUTO_RIPPLE_CHAR_SETS[i % AUTO_RIPPLE_CHAR_SETS.length] });
+            break;
+        }
+
+        // STROBE_FLOOD — 60 fast block-char bursts covering the whole frame
+        case 'strobe_flood': {
+            const cs = '\u2588\u2593\u2592\u2591';
+            const n = 55 + Math.floor(Math.random() * 30);
+            for (let i = 0; i < n; i++)
+                q.push({ fireAt: now + Math.random() * 250,
+                    col: rC(), row: rR(),
+                    speed: 0.16 + Math.random() * 0.16,
+                    duration: 320, width: 3.0, charSet: cs });
+            break;
+        }
+
+        // BULLSEYE — 12 perfectly-spaced concentric rings from center
+        case 'bullseye': {
+            const cc = Math.floor(gridCols/2), cr = Math.floor(gridRows/2);
+            const cs = rCs();
+            const interval = 180;
+            for (let i = 0; i < 12; i++)
+                q.push({ fireAt: now + i * interval, col: cc, row: cr,
+                    speed: 0.048, duration: 3500, width: 2.0, charSet: cs });
+            break;
+        }
+
+        // ── NEW: SHAPED PATHS ─────────────────────────────────
+
+        // SPIRAL — 40 origins spiraling outward from center, staggered
+        case 'spiral': {
+            const cc = gridCols/2, cr = gridRows/2;
+            const cs = rCs();
+            const n = 40 + Math.floor(Math.random() * 20);
+            for (let i = 0; i < n; i++) {
+                const t = i/n;
+                const angle = t * Math.PI * (Math.random() < 0.5 ? 4 : 6);
+                const radius = t * Math.min(gridCols, gridRows) * 0.42;
+                q.push({ fireAt: now + i * 55,
+                    col: clampC(cc + Math.cos(angle) * radius),
+                    row: clampR(cr + Math.sin(angle) * radius * 0.5),
+                    speed: rSpd(), duration: 650, width: 1.8, charSet: cs });
+            }
+            break;
+        }
+
+        // SNAKE — origins along a sine-wave S-curve sweeping left to right
+        case 'snake': {
+            const n = 45 + Math.floor(Math.random() * 20);
+            const cs = rCs();
+            const freq = 2 + Math.floor(Math.random() * 3);
+            const amp = 0.3 + Math.random() * 0.25;
+            for (let i = 0; i < n; i++) {
+                const t = i/n;
+                const col = clampC(t * (gridCols-2) + 1);
+                const row = clampR(gridRows * (0.5 + amp * Math.sin(t * Math.PI * 2 * freq)));
+                q.push({ fireAt: now + i * 45, col, row, speed: rSpd(), duration: 550, width: rW(), charSet: cs });
+            }
+            break;
+        }
+
+        // CROSS — origins fill a horizontal + vertical line simultaneously
+        case 'cross': {
+            const mc = Math.floor(gridCols/2), mr = Math.floor(gridRows/2);
+            const cs = rCs();
+            for (let c = 1; c < gridCols-1; c += 3)
+                q.push({ fireAt: now + c*7, col: c, row: mr, speed: 0.14, duration: 700, width: 2.0, charSet: cs });
+            for (let r = 1; r < gridRows-1; r += 2)
+                q.push({ fireAt: now + r*14, col: mc, row: r, speed: 0.14, duration: 700, width: 2.0, charSet: cs });
+            break;
+        }
+
+        // INVADERS — fire ripples from a Space Invaders sprite pattern
+        case 'invaders': {
+            const sprite = [
+                [0,1,0,1,0],
+                [1,1,1,1,1],
+                [1,0,1,0,1],
+                [0,1,0,1,0],
+            ];
+            const cc = rC(), cr = rR();
+            const cs = rCs();
+            sprite.forEach((row, ry) =>
+                row.forEach((on, cx) => {
+                    if (!on) return;
+                    q.push({ fireAt: now + (ry*5+cx)*35,
+                        col: clampC(cc + (cx-2)*10),
+                        row: clampR(cr + (ry-1)*6),
+                        speed: 0.13, duration: 700, width: 2.5, charSet: cs });
+                }));
+            break;
+        }
+
+        // ── NEW: TEMPORAL ─────────────────────────────────────
+
+        // LIGHTNING — rapid-fire staccato bursts alternating thin/fast + thick/slow
+        case 'lightning': {
+            const oc = rC(), or_ = rR();
+            for (let i = 0; i < 22; i++) {
+                const even = i % 2 === 0;
+                q.push({ fireAt: now + i * 38, col: oc, row: or_,
+                    speed: even ? 0.32 : 0.07,
+                    duration: even ? 220 : 350,
+                    width: even ? 1.2 : 5.0,
+                    charSet: '#@!$%' });
+            }
+            break;
+        }
+
+        // MEGABURST — 20 rings from one point, speeds fan out from v.slow to v.fast
+        case 'megaburst': {
+            const oc = rC(), or_ = rR();
+            for (let i = 0; i < 20; i++) {
+                const t = i/19;
+                q.push({ fireAt: now + i * 35, col: oc, row: or_,
+                    speed: 0.04 + t * 0.38,
+                    duration: 1800 - i * 75,
+                    width: 3.5 - t * 2.0,
+                    charSet: AUTO_RIPPLE_CHAR_SETS[i % AUTO_RIPPLE_CHAR_SETS.length] });
+            }
+            break;
+        }
+
+        // MATRIX_COL — every cell in a column fires outward simultaneously
+        case 'matrix_col': {
+            const col = rC();
+            const cs = rCs();
+            for (let r = 0; r < gridRows; r++)
+                q.push({ fireAt: now + r * 18, col,
+                    row: clampR(r),
+                    speed: 0.10 + Math.random() * 0.08, duration: 600, width: 1.8, charSet: cs });
+            break;
+        }
+
+        // HEARTBEAT — ECG-like P/QRS/T wave rhythm from same point
+        case 'heartbeat': {
+            const oc = rC(), or_ = rR(), cs = rCs();
+            const beats = [
+                { t: 0,    spd: 0.12, w: 1.5, dur: 500 },
+                { t: 80,   spd: 0.28, w: 5.5, dur: 300 },
+                { t: 140,  spd: 0.22, w: 4.0, dur: 350 },
+                { t: 420,  spd: 0.09, w: 2.5, dur: 700 },
+                { t: 820,  spd: 0.12, w: 1.5, dur: 500 },  // next beat
+                { t: 900,  spd: 0.28, w: 5.5, dur: 300 },
+                { t: 960,  spd: 0.22, w: 4.0, dur: 350 },
+            ];
+            beats.forEach(b =>
+                q.push({ fireAt: now + b.t, col: oc, row: or_,
+                    speed: b.spd, duration: b.dur, width: b.w, charSet: cs }));
             break;
         }
     }
@@ -690,7 +949,12 @@ function tickAutoRipple(now) {
 
     if (autoRipplePendingFires.length === 0 && now >= autoRippleNextAt) {
         scheduleAutoRipplePattern(now);
-        autoRippleNextAt = now + 1000 + Math.random() * 2800;
+        // Wide variance: short gap for quick patterns, longer gap after heavy ones
+        const r = Math.random();
+        const gap = r < 0.15 ? 400 + Math.random() * 600      // 15%: very fast back-to-back
+                  : r < 0.6  ? 800 + Math.random() * 1800     // 45%: normal
+                  :             2200 + Math.random() * 2800;   // 40%: longer pause
+        autoRippleNextAt = now + gap;
     }
 }
 
