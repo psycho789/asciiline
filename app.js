@@ -319,6 +319,189 @@ const FX_PRESETS = {
         css: 'fx-melt',
         asciiOnly: true,
     },
+    haze: {
+        label: 'HAZE', tip: 'Soft Gaussian blur',
+        hint: 'The entire canvas is softened — detail dissolves into atmosphere.',
+        fullDesc: 'The entire canvas is softened with a Gaussian blur — fine detail dissolves into hazy atmosphere while brightness lifts slightly.',
+        css: 'fx-haze', asciiOnly: false, pixelOk: true,
+    },
+    spectrum: {
+        label: 'SPECTRUM', tip: 'Infinite color cycle',
+        hint: 'The full color spectrum rotates across the canvas continuously.',
+        fullDesc: 'The full color spectrum rotates across the canvas continuously — an infinite hue spin that turns the video into a living rainbow transmission.',
+        css: 'fx-spectrum', asciiOnly: false, pixelOk: true,
+    },
+    punch: {
+        label: 'PUNCH', tip: 'Cinematic contrast',
+        hint: 'Hard contrast crush — blacks go deep, highlights pop.',
+        fullDesc: 'Hard contrast crush — blacks go deep, highlights pop. A cinematic grade that makes every frame feel like a blockbuster trailer.',
+        css: 'fx-punch', asciiOnly: false, pixelOk: true,
+    },
+    invert: {
+        label: 'INVERT', tip: 'Negative exposure',
+        hint: 'Full color inversion — a photographic negative of the video.',
+        fullDesc: 'Full color inversion — the video becomes a photographic negative, with hue rotated back so skin tones stay alien but readable.',
+        css: 'fx-invert', asciiOnly: false, pixelOk: true,
+    },
+    aura: {
+        label: 'AURA', tip: 'Neon drop-shadow',
+        hint: 'Every bright edge bleeds cyan neon light into the dark.',
+        fullDesc: 'Every bright edge bleeds cyan neon light into the dark — the image radiates like a backlit holographic sign.',
+        css: 'fx-aura', asciiOnly: false, pixelOk: true,
+    },
+    chrome: {
+        label: 'CHROME', tip: 'Tinted monochrome drift',
+        hint: 'Full desaturation to sepia, then hue slowly drifts through every color.',
+        fullDesc: 'Full desaturation to sepia, then hue slowly drifts through every color — a chrome-plated transmission that never stops shifting tint.',
+        css: 'fx-chrome', asciiOnly: false, pixelOk: true,
+    },
+    neon: {
+        label: 'NEON', tip: 'Character glow halo',
+        hint: 'Every character radiates cyan neon — invisible text, visible light.',
+        fullDesc: 'Every character radiates cyan neon — the text layer is invisible but the glow halo floats over the canvas like a sign in the dark.',
+        css: 'fx-neon', asciiOnly: true,
+    },
+    screen: {
+        label: 'SCREEN', tip: 'Screen blend with page',
+        hint: 'Dark areas become transparent — the player bleeds into the page behind it.',
+        fullDesc: 'Dark areas become transparent — the player screen-blends into the page behind it, bleeding the video into the blog layout.',
+        css: 'fx-screen', asciiOnly: false, pixelOk: true,
+    },
+    glass: {
+        label: 'GLASS', tip: 'Frosted glass backdrop',
+        hint: 'The player background frosted — page content beneath blurs and saturates.',
+        fullDesc: 'The player background becomes frosted glass — page content beneath blurs and saturates through a semi-transparent panel.',
+        css: 'fx-glass', asciiOnly: false, pixelOk: true,
+    },
+    shred: {
+        label: 'SHRED', tip: 'Frame tears and drifts',
+        hint: 'The clip boundary warps and twists — the image tears at its own edges.',
+        fullDesc: 'The clip boundary warps and twists on a loop — the image tears at its own edges like paper caught in a shredder.',
+        css: 'fx-shred', asciiOnly: false, pixelOk: true,
+    },
+    lens: {
+        label: 'LENS', tip: 'Barrel fisheye',
+        hint: 'The grid warps through a virtual lens — center magnified, edges compressed.',
+        fullDesc: 'The character grid warps through a virtual barrel lens — center magnified, edges compressed into a fisheye bulge.',
+        css: 'fx-lens', asciiOnly: true,
+    },
+    swirl: {
+        label: 'SWIRL', tip: 'Space spirals inward',
+        hint: 'Distance from center determines twist angle — the image funnels into a vortex.',
+        fullDesc: 'Distance from center determines twist angle — the image funnels into a slowly rotating vortex.',
+        css: 'fx-swirl', asciiOnly: true,
+    },
+    fold: {
+        label: 'FOLD', tip: '4-way mirror fold',
+        hint: 'The frame folds into quadrant symmetry — one corner tiled four times.',
+        fullDesc: 'The frame folds into quadrant symmetry — one corner of the image is mirrored four ways like a kaleidoscope.',
+        css: 'fx-fold', asciiOnly: true, pixelOk: true,
+    },
+    radar: {
+        label: 'RADAR', tip: 'Polar coordinate wrap',
+        hint: 'Columns become angles, rows become radius — the image curls into rings.',
+        fullDesc: 'Columns become angles and rows become radius — the flat image curls into concentric radar rings.',
+        css: 'fx-radar', asciiOnly: true,
+    },
+    decay: {
+        label: 'DECAY', tip: 'Chars burn out slowly',
+        hint: 'Dense chars persist after the video moves on — a slow typographic afterburn.',
+        fullDesc: 'Dense characters persist after the video moves on — a slow typographic afterburn where bright glyphs linger and fade like phosphor ash.',
+        css: 'fx-decay', asciiOnly: true,
+    },
+    prism: {
+        label: 'PRISM', tip: 'Gradient floods the text',
+        hint: 'A single scrolling spectrum gradient fills every character — the image lives in color bands.',
+        fullDesc: 'A single scrolling spectrum gradient fills every character — the image lives in sweeping color bands independent of source pixel color.',
+        css: 'fx-prism', asciiOnly: true,
+    },
+    rotwave: {
+        label: 'VORTEX', tip: 'Wave rotates each char',
+        hint: 'A sine wave sweeps rotation across the grid — characters tilt and right themselves as the wave passes.',
+        fullDesc: 'A sine wave sweeps rotation across the grid — characters tilt and right themselves as the wave passes through the field.',
+        css: 'fx-rotwave', asciiOnly: true,
+    },
+    orbit: {
+        label: 'ORBIT', tip: 'Characters spin outward',
+        hint: 'Each char rotates based on distance and direction from center — the image feels alive.',
+        fullDesc: 'Each character rotates based on distance and direction from center — the whole image feels like it is slowly spinning alive.',
+        css: 'fx-orbit', asciiOnly: true,
+    },
+    plasma: {
+        label: 'PLASMA', tip: 'Fluid smoke distortion',
+        hint: 'SVG feTurbulence warps every pixel of the canvas — the image dissolves into fluid smoke.',
+        fullDesc: 'SVG feTurbulence warps every pixel of the canvas — the image dissolves into fluid smoke that never repeats the same pattern twice.',
+        css: 'fx-plasma', asciiOnly: false, pixelOk: true,
+    },
+    bloom: {
+        label: 'BLOOM', tip: 'Luminance bleeds outward',
+        hint: 'Bright regions bloom — screen-blended Gaussian blur adds light-bleed to every hot pixel.',
+        fullDesc: 'Bright regions bloom outward — screen-blended Gaussian blur adds light-bleed to every hot pixel like an overexposed photograph.',
+        css: 'fx-bloom', asciiOnly: false, pixelOk: true,
+    },
+    tilt3d: {
+        label: '3D TILT', tip: 'Holographic mouse tilt',
+        hint: 'Move the mouse over the player — perspective transforms track your position like a hologram.',
+        fullDesc: 'Move the mouse over the player — perspective transforms track your position like a holographic card tilting in 3D space.',
+        action: 'Move the mouse over the video to tilt the view.',
+        css: 'fx-tilt3d', asciiOnly: false, pixelOk: true, interactive: true,
+    },
+    'pulse-clip': {
+        label: 'PULSE', tip: 'Audio-driven window',
+        hint: 'The frame clips to an ellipse that breathes with the audio — loud moments expand the view.',
+        fullDesc: 'The frame clips to an ellipse that breathes with the audio — loud moments expand the visible window, silence shrinks it to a tight portal.',
+        action: 'Turn volume up. The window grows and shrinks with sound.',
+        audioLevel: true,
+        css: 'fx-pulse-clip', asciiOnly: false, pixelOk: true, interactive: true,
+    },
+    edge: {
+        label: 'EDGES', tip: 'Sobel edge detection',
+        hint: 'Sobel kernel extracts every edge — the video becomes a moving line-art drawing.',
+        fullDesc: 'Sobel edge detection extracts every contour — the video becomes a moving line-art drawing traced in source colors.',
+        css: 'fx-edge', pixelOnly: true,
+    },
+    relief: {
+        label: 'RELIEF', tip: 'Directional emboss',
+        hint: 'Pixel differences from northwest become depth — the video gains a 3D relief texture.',
+        fullDesc: 'Pixel differences from northwest lighting become depth — the video gains a 3D embossed relief texture.',
+        css: 'fx-relief', pixelOnly: true,
+    },
+    crisp: {
+        label: 'CRISP', tip: 'Unsharp mask clarity',
+        hint: 'High-frequency sharpening kernel — every edge snaps, texture becomes razor detail.',
+        fullDesc: 'High-frequency sharpening kernel — every edge snaps and texture becomes razor-sharp detail.',
+        css: 'fx-crisp', pixelOnly: true,
+    },
+    retro: {
+        label: 'RETRO', tip: 'Bayer ordered dither',
+        hint: '4×4 Bayer matrix reduces color depth — the video becomes a retro 4-level display.',
+        fullDesc: 'A 4×4 Bayer matrix reduces color depth — the video becomes a retro four-level display like an old LCD.',
+        css: 'fx-retro', pixelOnly: true,
+    },
+    dots: {
+        label: 'DOTS', tip: 'Colored halftone circles',
+        hint: 'Each pixel becomes a colored dot sized to its brightness — a moving magazine halftone.',
+        fullDesc: 'Each pixel becomes a colored dot sized to its brightness — a moving magazine halftone printed in full color.',
+        css: 'fx-dots', pixelOnly: true,
+    },
+    echo: {
+        label: 'ECHO', tip: 'Double exposure echo',
+        hint: 'Two exposures of the same frame at different scales composite on screen blend.',
+        fullDesc: 'Two exposures of the same frame at different scales composite together — a pulsing double-exposure echo.',
+        css: 'fx-echo', pixelOnly: true,
+    },
+    film: {
+        label: 'FILM', tip: 'Analog film grain',
+        hint: 'Per-pixel luminance noise — silver halide grain on every frame.',
+        fullDesc: 'Per-pixel luminance noise on every frame — silver halide grain like analog film stock.',
+        css: 'fx-film', pixelOnly: true,
+    },
+    roll: {
+        label: 'ROLL', tip: 'Frame rolls on its axis',
+        hint: 'The frame rocks back and forth on a slow sinusoidal tilt — analog warp instability.',
+        fullDesc: 'The frame rocks back and forth on a slow sinusoidal tilt — analog warp instability like a loose projector gate.',
+        css: 'fx-roll', pixelOnly: true,
+    },
 };
 
 // Populate fxParams defaults from FX_PRESETS controls definitions
@@ -389,6 +572,7 @@ let rendPhase = 0, rendPhaseStart = 0;
 let meltStartTime = 0;
 let meltColSpeeds = null;
 let meltColPhase = null;
+let decayBuffer = null;
 
 let audioCtx = null;
 let analyser = null;
@@ -415,16 +599,20 @@ const THERMAL_RGB = THERMAL_COLORS.map((hex) => {
 function fxWorksInCurrentMode(id) {
     const preset = FX_PRESETS[id];
     if (!preset) return false;
+    if (!pixelMode && preset.pixelOnly) return false;
     if (!pixelMode) return true;
     return preset.pixelOk === true;
 }
 
 function effectiveFx() {
+    if (!pixelMode && FX_PRESETS[activeFx]?.pixelOnly) return 'clean';
     if (pixelMode && FX_PRESETS[activeFx]?.asciiOnly && !FX_PRESETS[activeFx]?.pixelOk) return 'clean';
     return activeFx;
 }
 
 function resetFxState() {
+    removeTilt3d();
+    container.style.clipPath = '';
     corruptZones = [];
     nextCorruptAt = performance.now() + 600;
     ripples = [];
@@ -436,6 +624,7 @@ function resetFxState() {
         const n = gridCols * gridRows;
         cellHold = new Uint8Array(n);
         prevChars = new Uint8Array(n);
+        decayBuffer = new Float32Array(n);
     }
     if (trailCanvas && trailCtx) {
         trailCtx.fillStyle = '#050505';
@@ -448,6 +637,11 @@ function applyFx(id, { cycleFont = false } = {}) {
 
     if (pixelMode && FX_PRESETS[id].asciiOnly && !FX_PRESETS[id].pixelOk) {
         flashCopyStatus('This LOOK preset is ASCII-only — switch to ASCII mode');
+        return;
+    }
+
+    if (!pixelMode && FX_PRESETS[id].pixelOnly) {
+        flashCopyStatus('This LOOK preset is PIXEL-only — switch to PIXEL mode');
         return;
     }
 
@@ -468,6 +662,8 @@ function applyFx(id, { cycleFont = false } = {}) {
     updateFxPickerUI();
 
     if (AUDIO_REACTIVE_FX.has(id) && state === 'PLAYING') initAudioAnalyser();
+    if (id === 'tilt3d') initTilt3d();
+    else removeTilt3d();
     if (id === 'hole') initHole();
     if (id === 'rend') initRend();
     if (id === 'melt') initMelt();
@@ -492,8 +688,13 @@ function buildFxPanel(id) {
     // Badge: ASCII-only warning when in pixel mode
     if (fxPanelBadge) {
         const isAsciiOnly = pixelMode && preset.asciiOnly && !preset.pixelOk;
-        fxPanelBadge.textContent = isAsciiOnly ? 'ASCII only — switch to ASCII mode for full effect' : '';
-        fxPanelBadge.hidden = !isAsciiOnly;
+        const isPixelOnly = !pixelMode && preset.pixelOnly;
+        fxPanelBadge.textContent = isAsciiOnly
+            ? 'ASCII only — switch to ASCII mode for full effect'
+            : isPixelOnly
+                ? 'PIXEL only — switch to PIXEL mode for full effect'
+                : '';
+        fxPanelBadge.hidden = !isAsciiOnly && !isPixelOnly;
     }
 
     // Description — use fullDesc first, fall back to hint
@@ -501,6 +702,8 @@ function buildFxPanel(id) {
         let body = preset.fullDesc || preset.hint || preset.tip || '';
         if (pixelMode && preset.asciiOnly && !preset.pixelOk) {
             body = 'This effect needs the ASCII character grid. Click the ASCII button above to switch modes.';
+        } else if (!pixelMode && preset.pixelOnly) {
+            body = 'This effect needs PIXEL mode. Click the PIXEL button above to switch modes.';
         }
         fxPanelDesc.textContent = body;
     }
@@ -607,9 +810,11 @@ function updateFxPickerUI() {
         const preset = FX_PRESETS[id];
         const on = id === activeFx;
         const asciiOnly = pixelMode && preset?.asciiOnly && !preset?.pixelOk;
+        const pixelOnly = !pixelMode && preset?.pixelOnly;
         btn.classList.toggle('active', on);
         btn.disabled = false;
         btn.dataset.asciiOnly = asciiOnly ? 'true' : 'false';
+        btn.dataset.pixelOnly = pixelOnly ? 'true' : 'false';
         btn.setAttribute('aria-selected', String(on));
         btn.setAttribute('aria-pressed', String(on));
         btn.tabIndex = on ? 0 : -1;
@@ -639,8 +844,10 @@ function buildFxPicker() {
 
         const badgeEl = document.createElement('span');
         badgeEl.className = 'fx-chip-badge';
-        badgeEl.textContent = 'ASCII';
-        badgeEl.title = 'ASCII mode only — click to switch and apply';
+        badgeEl.textContent = preset.pixelOnly ? 'PIXEL' : 'ASCII';
+        badgeEl.title = preset.pixelOnly
+            ? 'PIXEL mode only — click to switch and apply'
+            : 'ASCII mode only — click to switch and apply';
 
         btn.appendChild(nameEl);
         btn.appendChild(tipEl);
@@ -648,10 +855,12 @@ function buildFxPicker() {
 
         btn.addEventListener('click', () => {
             const isAsciiOnly = preset.asciiOnly && !preset.pixelOk;
+            const isPixelOnly = preset.pixelOnly;
             if (pixelMode && isAsciiOnly) {
-                // Auto-switch to ASCII mode, then apply effect
                 setPreferPixel(false, { reconnect: state === 'PLAYING' });
-                // Wait one tick for mode switch to settle before applying fx
+                setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
+            } else if (!pixelMode && isPixelOnly) {
+                setPreferPixel(true, { reconnect: state === 'PLAYING' });
                 setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
             } else {
                 applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' });
@@ -681,7 +890,7 @@ function initAudioAnalyser() {
     }
 }
 
-const AUDIO_REACTIVE_FX = new Set(['resonate', 'soundwave', 'beatstrike', 'spectra']);
+const AUDIO_REACTIVE_FX = new Set(['resonate', 'soundwave', 'beatstrike', 'spectra', 'pulse-clip']);
 
 function updateAudioEnergy(now) {
     const fx = effectiveFx();
@@ -1268,6 +1477,16 @@ function resolveCell(data, row, col, now) {
     const gray = grayFromRGB(r, g, b);
     const cellIdx = row * gridCols + col;
 
+    if (effectiveFx() === 'decay' && decayBuffer) {
+        decayBuffer[cellIdx] = Math.max(gray, decayBuffer[cellIdx]);
+        const effectiveGray = decayBuffer[cellIdx];
+        decayBuffer[cellIdx] = Math.max(0, decayBuffer[cellIdx] - 1.5);
+        return {
+            charCode: pickCharFromGray(effectiveGray),
+            r, g, b, gray,
+        };
+    }
+
     let charCode = pickCharFromGray(gray);
 
     if (shouldUseInterlaceHold(row) && cellHold[cellIdx] > 0) {
@@ -1416,6 +1635,186 @@ function renderPixelBroadcast() {
     renderPixelInterlace();
 }
 
+const BAYER_4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+
+function renderPixelFold() {
+    ctx.save();
+    ctx.translate(gridCols / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -gridCols / 2, 0, gridCols / 2, gridRows);
+    ctx.restore();
+    ctx.drawImage(video, 0, 0, gridCols / 2, gridRows);
+}
+
+function renderPixelEdge() {
+    offCtx.drawImage(video, 0, 0, gridCols, gridRows);
+    const src = offCtx.getImageData(0, 0, gridCols, gridRows).data;
+    const out = ctx.createImageData(gridCols, gridRows);
+    const od = out.data;
+    const gxK = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
+    const gyK = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
+    for (let y = 1; y < gridRows - 1; y++) {
+        for (let x = 1; x < gridCols - 1; x++) {
+            let gx = 0;
+            let gy = 0;
+            for (let ky = -1; ky <= 1; ky++) {
+                for (let kx = -1; kx <= 1; kx++) {
+                    const si = ((y + ky) * gridCols + (x + kx)) * 4;
+                    const v = src[si] * 0.299 + src[si + 1] * 0.587 + src[si + 2] * 0.114;
+                    gx += v * gxK[ky + 1][kx + 1];
+                    gy += v * gyK[ky + 1][kx + 1];
+                }
+            }
+            const mag = Math.min(255, Math.sqrt(gx * gx + gy * gy));
+            const oi = (y * gridCols + x) * 4;
+            const ci = (y * gridCols + x) * 4;
+            od[oi] = src[ci] * mag / 255;
+            od[oi + 1] = src[ci + 1] * mag / 255;
+            od[oi + 2] = src[ci + 2] * mag / 255;
+            od[oi + 3] = 255;
+        }
+    }
+    ctx.putImageData(out, 0, 0);
+}
+
+function renderPixelRelief() {
+    offCtx.drawImage(video, 0, 0, gridCols, gridRows);
+    const src = offCtx.getImageData(0, 0, gridCols, gridRows).data;
+    const out = ctx.createImageData(gridCols, gridRows);
+    const od = out.data;
+    const K = [[-2, -1, 0], [-1, 1, 1], [0, 1, 2]];
+    for (let y = 1; y < gridRows - 1; y++) {
+        for (let x = 1; x < gridCols - 1; x++) {
+            let sum = 128;
+            for (let ky = -1; ky <= 1; ky++) {
+                for (let kx = -1; kx <= 1; kx++) {
+                    const si = ((y + ky) * gridCols + (x + kx)) * 4;
+                    const v = src[si] * 0.299 + src[si + 1] * 0.587 + src[si + 2] * 0.114;
+                    sum += v * K[ky + 1][kx + 1];
+                }
+            }
+            const v = Math.max(0, Math.min(255, sum));
+            const oi = (y * gridCols + x) * 4;
+            od[oi] = od[oi + 1] = od[oi + 2] = v;
+            od[oi + 3] = 255;
+        }
+    }
+    ctx.putImageData(out, 0, 0);
+}
+
+function renderPixelCrisp() {
+    offCtx.drawImage(video, 0, 0, gridCols, gridRows);
+    const src = offCtx.getImageData(0, 0, gridCols, gridRows).data;
+    const out = ctx.createImageData(gridCols, gridRows);
+    const od = out.data;
+    const K = [[0, -1, 0], [-1, 5, -1], [0, -1, 0]];
+    for (let y = 1; y < gridRows - 1; y++) {
+        for (let x = 1; x < gridCols - 1; x++) {
+            for (let ch = 0; ch < 3; ch++) {
+                let sum = 0;
+                for (let ky = -1; ky <= 1; ky++) {
+                    for (let kx = -1; kx <= 1; kx++) {
+                        const si = ((y + ky) * gridCols + (x + kx)) * 4 + ch;
+                        sum += src[si] * K[ky + 1][kx + 1];
+                    }
+                }
+                const oi = (y * gridCols + x) * 4 + ch;
+                od[oi] = Math.max(0, Math.min(255, sum));
+            }
+            od[(y * gridCols + x) * 4 + 3] = 255;
+        }
+    }
+    ctx.putImageData(out, 0, 0);
+}
+
+function renderPixelRetro() {
+    offCtx.drawImage(video, 0, 0, gridCols, gridRows);
+    const { data } = offCtx.getImageData(0, 0, gridCols, gridRows);
+    const out = ctx.createImageData(gridCols, gridRows);
+    const od = out.data;
+    const nLevels = 4;
+    for (let y = 0; y < gridRows; y++) {
+        for (let x = 0; x < gridCols; x++) {
+            const i = (y * gridCols + x) * 4;
+            const threshold = BAYER_4[y % 4][x % 4] / 16;
+            const dither = (v) => {
+                const norm = v / 255;
+                return Math.min(255, Math.round(Math.floor(norm * nLevels + threshold) / nLevels * 255));
+            };
+            od[i] = dither(data[i]);
+            od[i + 1] = dither(data[i + 1]);
+            od[i + 2] = dither(data[i + 2]);
+            od[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(out, 0, 0);
+}
+
+function renderPixelDots() {
+    offCtx.drawImage(video, 0, 0, gridCols, gridRows);
+    const { data } = offCtx.getImageData(0, 0, gridCols, gridRows);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, gridCols, gridRows);
+    for (let y = 0; y < gridRows; y++) {
+        for (let x = 0; x < gridCols; x++) {
+            const i = (y * gridCols + x) * 4;
+            const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+            const radius = (gray / 255) * 0.52;
+            if (radius < 0.02) continue;
+            ctx.beginPath();
+            ctx.arc(x + 0.5, y + 0.5, radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgb(${data[i]},${data[i + 1]},${data[i + 2]})`;
+            ctx.fill();
+        }
+    }
+}
+
+function renderPixelEcho() {
+    const t = performance.now() * 0.0004;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, gridCols, gridRows);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.65;
+    ctx.drawImage(video, 0, 0, gridCols, gridRows);
+    const zoom = 1.06 + Math.sin(t) * 0.03;
+    const zw = gridCols * zoom;
+    const zh = gridRows * zoom;
+    const zx = (gridCols - zw) / 2;
+    const zy = (gridRows - zh) / 2;
+    ctx.globalAlpha = 0.38;
+    ctx.filter = 'saturate(0.4) brightness(1.1)';
+    ctx.drawImage(video, zx, zy, zw, zh);
+    ctx.filter = 'none';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+}
+
+function renderPixelFilm() {
+    ctx.drawImage(video, 0, 0, gridCols, gridRows);
+    const imgData = ctx.getImageData(0, 0, gridCols, gridRows);
+    const d = imgData.data;
+    const amount = 28;
+    for (let i = 0; i < d.length; i += 4) {
+        const noise = (Math.random() - 0.5) * amount * 2;
+        d[i] = Math.max(0, Math.min(255, d[i] + noise));
+        d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + noise));
+        d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + noise));
+    }
+    ctx.putImageData(imgData, 0, 0);
+}
+
+function renderPixelRoll() {
+    const t = performance.now() * 0.00055;
+    const angle = Math.sin(t) * 0.13;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, gridCols, gridRows);
+    ctx.save();
+    ctx.translate(gridCols / 2, gridRows / 2);
+    ctx.rotate(angle);
+    ctx.drawImage(video, -gridCols * 0.55, -gridRows * 0.55, gridCols * 1.1, gridRows * 1.1);
+    ctx.restore();
+}
+
 function renderPixel(now) {
     const fx = effectiveFx();
 
@@ -1426,6 +1825,24 @@ function renderPixel(now) {
     } else if (fx === 'interlace' || fx === 'broadcast') {
         if (fx === 'broadcast') renderPixelBroadcast();
         else renderPixelInterlace();
+    } else if (fx === 'fold') {
+        renderPixelFold();
+    } else if (fx === 'edge') {
+        renderPixelEdge();
+    } else if (fx === 'relief') {
+        renderPixelRelief();
+    } else if (fx === 'crisp') {
+        renderPixelCrisp();
+    } else if (fx === 'retro') {
+        renderPixelRetro();
+    } else if (fx === 'dots') {
+        renderPixelDots();
+    } else if (fx === 'echo') {
+        renderPixelEcho();
+    } else if (fx === 'film') {
+        renderPixelFilm();
+    } else if (fx === 'roll') {
+        renderPixelRoll();
     } else {
         ctx.drawImage(video, 0, 0, gridCols, gridRows);
     }
@@ -1685,6 +2102,22 @@ function renderTriglyph(data, now) {
     lastFrameText = player.textContent;
 }
 
+function computeCharAngle(col, row, now) {
+    const fx = effectiveFx();
+    const t = now * 0.001;
+    if (fx === 'rotwave') {
+        return Math.sin(col * 0.22 + t * 1.5) * 0.55
+             + Math.sin(row * 0.28 + t * 1.0) * 0.2;
+    }
+    if (fx === 'orbit') {
+        const dx = col - gridCols / 2;
+        const dy = row - gridRows / 2;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        return t * 0.9 + dist * 0.07;
+    }
+    return 0;
+}
+
 function renderColorAscii(data, now) {
     const fx = effectiveFx();
 
@@ -1693,11 +2126,44 @@ function renderColorAscii(data, now) {
         return;
     }
 
+    if (fx === 'prism') {
+        ctx.fillStyle = '#050505';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = getActiveFont().css;
+        ctx.textBaseline = 'top';
+        const t = now * 0.0003;
+        const gradY0 = canvas.height * (-0.3 + Math.sin(t) * 0.4);
+        const gradY1 = canvas.height * (1.3 + Math.cos(t * 0.7) * 0.4);
+        const grad = ctx.createLinearGradient(0, gradY0, 0, gradY1);
+        grad.addColorStop(0, '#ff0040');
+        grad.addColorStop(0.2, '#ff8c00');
+        grad.addColorStop(0.45, '#00f3ff');
+        grad.addColorStop(0.7, '#39ff14');
+        grad.addColorStop(1, '#c400ff');
+        ctx.fillStyle = grad;
+        const lines = new Array(gridRows);
+        for (let r = 0; r < gridRows; r++) {
+            let line = '';
+            for (let c = 0; c < gridCols; c++) {
+                const { charCode } = resolveCell(data, r, c, now);
+                ctx.fillText(charStr(charCode), xPos[c], yPos[r]);
+                line += charStr(charCode);
+            }
+            lines[r] = line;
+        }
+        player.style.display = 'block';
+        player.style.color = 'transparent';
+        player.textContent = lines.join('\n');
+        lastFrameText = player.textContent;
+        return;
+    }
+
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.font = getActiveFont().css;
     ctx.textBaseline = 'top';
 
+    const usePerCharTransform = (fx === 'rotwave' || fx === 'orbit');
     let prevFill = '';
     const lines = new Array(gridRows);
     for (let r = 0; r < gridRows; r++) lines[r] = '';
@@ -1710,7 +2176,22 @@ function renderColorAscii(data, now) {
                 ctx.fillStyle = fill;
                 prevFill = fill;
             }
-            ctx.fillText(charStr(charCode), xPos[col], yPos[row]);
+            if (usePerCharTransform) {
+                const angle = computeCharAngle(col, row, now);
+                if (Math.abs(angle) > 0.008) {
+                    const cx = xPos[col] + charWidth * 0.5;
+                    const cy = yPos[row] + charHeight * 0.5;
+                    ctx.save();
+                    ctx.translate(cx, cy);
+                    ctx.rotate(angle);
+                    ctx.fillText(charStr(charCode), -charWidth * 0.5, -charHeight * 0.5);
+                    ctx.restore();
+                } else {
+                    ctx.fillText(charStr(charCode), xPos[col], yPos[row]);
+                }
+            } else {
+                ctx.fillText(charStr(charCode), xPos[col], yPos[row]);
+            }
             lines[row] += charStr(charCode);
             if (charCode < 256) selectionBuffer[row * (gridCols + 1) + col] = charCode;
         }
@@ -1800,6 +2281,30 @@ function initMelt() {
     }
 }
 
+function onTilt3dMove(e) {
+    const rect = container.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    container.style.transform =
+        `perspective(700px) rotateY(${(x * 14).toFixed(2)}deg) rotateX(${(-y * 10).toFixed(2)}deg)`;
+}
+
+function onTilt3dLeave() {
+    container.style.transform = 'perspective(700px) rotateY(0deg) rotateX(0deg)';
+    setTimeout(() => { container.style.transform = ''; }, 350);
+}
+
+function initTilt3d() {
+    container.addEventListener('mousemove', onTilt3dMove);
+    container.addEventListener('mouseleave', onTilt3dLeave);
+}
+
+function removeTilt3d() {
+    container.removeEventListener('mousemove', onTilt3dMove);
+    container.removeEventListener('mouseleave', onTilt3dLeave);
+    if (effectiveFx() !== 'tilt3d') container.style.transform = '';
+}
+
 // Returns { srcCol, srcRow, override } — override is non-null to short-circuit resolveCell
 function distortCell(col, row) {
     const fx = effectiveFx();
@@ -1881,6 +2386,58 @@ function distortCell(col, row) {
         return { srcCol, srcRow, override: null };
     }
 
+    if (fx === 'lens' && gridCols > 1 && gridRows > 1) {
+        const nx = (col / (gridCols - 1)) * 2 - 1;
+        const ny = (row / (gridRows - 1)) * 2 - 1;
+        const r2 = nx * nx + ny * ny;
+        const k = 0.45;
+        const d = 1 + k * r2;
+        const sx = (nx / d + 1) * (gridCols - 1) / 2;
+        const sy = (ny / d + 1) * (gridRows - 1) / 2;
+        return {
+            srcCol: Math.max(0, Math.min(gridCols - 1, Math.round(sx))),
+            srcRow: Math.max(0, Math.min(gridRows - 1, Math.round(sy))),
+            override: null,
+        };
+    }
+
+    if (fx === 'swirl') {
+        const cx = gridCols / 2;
+        const cy = gridRows / 2;
+        const dx = col - cx;
+        const dy = row - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const t = performance.now() * 0.0003;
+        const theta = dist * 0.12 + t;
+        const cos = Math.cos(theta);
+        const sin = Math.sin(theta);
+        const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(cx + dx * cos - dy * sin)));
+        const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(cy + dx * sin + dy * cos)));
+        return { srcCol, srcRow, override: null };
+    }
+
+    if (fx === 'fold') {
+        const hc = Math.floor(gridCols / 2);
+        const hr = Math.floor(gridRows / 2);
+        const foldCol = col < hc ? col : gridCols - 1 - col;
+        const foldRow = row < hr ? row : gridRows - 1 - row;
+        return {
+            srcCol: Math.max(0, Math.min(gridCols - 1, foldCol * 2)),
+            srcRow: Math.max(0, Math.min(gridRows - 1, foldRow * 2)),
+            override: null,
+        };
+    }
+
+    if (fx === 'radar' && gridCols > 1 && gridRows > 1) {
+        const theta = (col / (gridCols - 1)) * Math.PI * 2;
+        const radius = (row / (gridRows - 1)) * 0.48;
+        const srcCol = Math.max(0, Math.min(gridCols - 1,
+            Math.round((0.5 + radius * Math.cos(theta)) * (gridCols - 1))));
+        const srcRow = Math.max(0, Math.min(gridRows - 1,
+            Math.round((0.5 + radius * Math.sin(theta)) * (gridRows - 1))));
+        return { srcCol, srcRow, override: null };
+    }
+
     // SOUNDWAVE — audio waveform bends rows; amplitude scales with RMS volume
     if (fx === 'soundwave' || fx === 'beatstrike') {
         if (audioWaveform && audioWaveform.length >= 2) {
@@ -1936,6 +2493,26 @@ function processFrame(now) {
     tickBeatstrike(now);
     tickHole(now);
     tickRend(now);
+
+    const fxNow = effectiveFx();
+    if (fxNow === 'plasma') {
+        const turbEl = document.getElementById('plasma-turb');
+        if (turbEl) {
+            const t = performance.now() * 0.00010;
+            const bf1 = 0.012 + Math.sin(t) * 0.005;
+            const bf2 = 0.009 + Math.cos(t * 0.73) * 0.004;
+            turbEl.setAttribute('baseFrequency', `${bf1.toFixed(5)} ${bf2.toFixed(5)}`);
+            turbEl.setAttribute('seed', (Math.floor(t * 5) % 999).toString());
+        }
+    }
+    if (fxNow === 'pulse-clip') {
+        const base = 42;
+        const pct = base + audioRms * 50 + audioBass * 18;
+        container.style.clipPath =
+            `ellipse(${Math.min(pct, 92).toFixed(1)}% ${Math.min(pct * 0.72, 68).toFixed(1)}% at 50% 50%)`;
+    } else if (container.style.clipPath && fxNow !== 'pulse-clip') {
+        container.style.clipPath = '';
+    }
 
     if (pixelMode) {
         renderPixelFrame(now);
@@ -2019,6 +2596,12 @@ async function initPlayback() {
         container.className = 'fx-clean';
     }
 
+    if (!pixelMode && FX_PRESETS[activeFx]?.pixelOnly) {
+        activeFx = 'clean';
+        sessionStorage.setItem('asciiline-fx', 'clean');
+        container.className = 'fx-clean';
+    }
+
     if (video.readyState < 1) {
         await new Promise((resolve, reject) => {
             video.addEventListener('loadedmetadata', resolve, { once: true });
@@ -2044,6 +2627,7 @@ async function startStream() {
         await video.play();
         state = 'PLAYING';
         if (AUDIO_REACTIVE_FX.has(effectiveFx())) initAudioAnalyser();
+        if (effectiveFx() === 'tilt3d') initTilt3d();
         if (effectiveFx() === 'hole') initHole();
         if (effectiveFx() === 'rend') initRend();
         if (effectiveFx() === 'melt') initMelt();
@@ -2091,6 +2675,8 @@ async function restartWithMode() {
             await video.play();
             state = 'PLAYING';
             if (AUDIO_REACTIVE_FX.has(effectiveFx())) initAudioAnalyser();
+            if (effectiveFx() === 'tilt3d') initTilt3d();
+            else removeTilt3d();
             if (effectiveFx() === 'hole') initHole();
             if (effectiveFx() === 'rend') initRend();
             if (effectiveFx() === 'melt') initMelt();
@@ -2251,3 +2837,28 @@ loadConfig()
         statusEl.textContent = err.message;
         statusEl.style.color = '#ff0000';
     });
+
+const playerObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            if (state === 'PLAYING' && video.paused) {
+                video.play().catch(() => {});
+            }
+        } else if (!entry.isIntersecting) {
+            if (state === 'PLAYING' && !video.paused) video.pause();
+        }
+    }
+}, { threshold: [0, 0.4] });
+playerObserver.observe(container);
+
+function applyParallax() {
+    const rect = container.getBoundingClientRect();
+    const viewH = window.innerHeight;
+    const progress = 1 - (rect.top + rect.height) / (viewH + rect.height);
+    const offset = (progress - 0.5) * 30;
+    if (effectiveFx() !== 'tilt3d') {
+        container.style.transform = `translateY(${offset.toFixed(1)}px)`;
+    }
+}
+window.addEventListener('scroll', applyParallax, { passive: true });

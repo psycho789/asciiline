@@ -105,6 +105,24 @@
     </main>
 
     <script src="app.js"></script>
+    <svg id="svg-filters" xmlns="http://www.w3.org/2000/svg"
+         style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+        <defs>
+            <filter id="plasma-filter" x="-5%" y="-5%" width="110%" height="110%"
+                    color-interpolation-filters="sRGB">
+                <feTurbulence id="plasma-turb" type="turbulence"
+                              baseFrequency="0.012 0.009" numOctaves="4" seed="0" result="noise"/>
+                <feDisplacementMap in="SourceGraphic" in2="noise"
+                                   scale="18" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+            <filter id="bloom-filter" x="-8%" y="-8%" width="116%" height="116%"
+                    color-interpolation-filters="sRGB">
+                <feGaussianBlur stdDeviation="2.5" result="blurred"/>
+                <feBlend in="SourceGraphic" in2="blurred" mode="screen" result="bloomed"/>
+                <feComposite in="bloomed" in2="SourceGraphic" operator="over"/>
+            </filter>
+        </defs>
+    </svg>
 </body>
 
 </html>

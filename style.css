@@ -498,12 +498,18 @@ body {
     pointer-events: none;
 }
 
-.fx-chip[data-ascii-only="true"] .fx-chip-badge {
+.fx-chip[data-ascii-only="true"] .fx-chip-badge,
+.fx-chip[data-pixel-only="true"] .fx-chip-badge {
     opacity: 1;
 }
 
-.fx-chip[data-ascii-only="true"] {
+.fx-chip[data-ascii-only="true"],
+.fx-chip[data-pixel-only="true"] {
     border-style: dashed;
+}
+
+.fx-chip[data-pixel-only="true"] .fx-chip-badge {
+    color: var(--accent-secondary);
 }
 
 .fx-chip[data-ascii-only="true"]:hover {
@@ -680,8 +686,71 @@ body {
 }
 
 /* Audio effect CSS classes */
-.fx-soundwave { filter: brightness(1.05); }
-.fx-spectra   { filter: contrast(1.1) saturate(1.1); }
+#player-container.fx-soundwave #ascii-canvas {
+    filter: contrast(1.05) saturate(1.1);
+}
+#player-container.fx-soundwave.fx-beat {
+    animation: fx-beat-shake 0.07s ease-out;
+}
+#player-container.fx-beatstrike.fx-beat {
+    animation: fx-beat-shake 0.06s ease-out;
+}
+#player-container.fx-spectra #ascii-canvas {
+    filter: saturate(1.2) brightness(0.95);
+}
+
+/* CSS-only canvas / container effects */
+#player-container.fx-haze #ascii-canvas { filter: blur(1.8px) brightness(1.05); }
+#player-container.fx-spectrum #ascii-canvas { animation: hue-spin 5s linear infinite; }
+@keyframes hue-spin {
+    from { filter: hue-rotate(0deg) saturate(1.6); }
+    to   { filter: hue-rotate(360deg) saturate(1.6); }
+}
+#player-container.fx-punch #ascii-canvas { filter: contrast(2.6) brightness(0.62) saturate(1.3); }
+#player-container.fx-invert #ascii-canvas { filter: invert(1) hue-rotate(180deg); }
+#player-container.fx-aura #ascii-canvas {
+    filter: drop-shadow(0 0 5px #00f3ff) drop-shadow(0 0 14px rgba(0,243,255,0.45)) brightness(0.88);
+}
+#player-container.fx-chrome #ascii-canvas { animation: chrome-drift 10s linear infinite; }
+@keyframes chrome-drift {
+    from { filter: sepia(1) saturate(5) hue-rotate(0deg); }
+    to   { filter: sepia(1) saturate(5) hue-rotate(360deg); }
+}
+#player-container.fx-neon #ascii-player {
+    text-shadow: 0 0 4px #00f3ff, 0 0 14px #00f3ff, 0 0 32px rgba(0,243,255,0.5);
+}
+#player-container.fx-neon #ascii-canvas { opacity: 0.55; }
+#player-container.fx-screen { mix-blend-mode: screen; background: transparent; }
+#player-container.fx-glass {
+    background: rgba(5, 5, 5, 0.45);
+    backdrop-filter: blur(14px) saturate(2);
+    -webkit-backdrop-filter: blur(14px) saturate(2);
+}
+#player-container.fx-shred {
+    animation: shred-clip 3.5s ease-in-out infinite;
+    overflow: hidden;
+}
+@keyframes shred-clip {
+    0%   { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+    15%  { clip-path: polygon(0 0, 96% 3%, 100% 100%, 4% 96%); }
+    30%  { clip-path: polygon(3% 0, 100% 2%, 97% 100%, 0 97%); }
+    50%  { clip-path: polygon(0 4%, 98% 0, 100% 96%, 2% 100%); }
+    70%  { clip-path: polygon(2% 0, 100% 3%, 98% 100%, 0 98%); }
+    85%  { clip-path: polygon(0 0, 97% 4%, 100% 97%, 3% 100%); }
+    100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+}
+#player-container.fx-decay #ascii-canvas { filter: brightness(0.94) sepia(0.1); }
+#player-container.fx-plasma #ascii-canvas { filter: url(#plasma-filter); }
+#player-container.fx-bloom #ascii-canvas { filter: url(#bloom-filter) brightness(0.88); }
+#player-container.fx-tilt3d {
+    transform-style: preserve-3d;
+    transition: transform 0.06s ease-out;
+    will-change: transform;
+}
+#player-container.fx-tilt3d #ascii-canvas,
+#player-container.fx-tilt3d #ascii-player {
+    transform: translateZ(8px);
+}
 
 /* ── FX OVERLAY ──────────────────────── */
 #fx-overlay {
