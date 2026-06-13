@@ -726,6 +726,11 @@ body {
     color: #888;
 }
 
+.fx-cat-pill-all.active,
+.fx-cat-pill-none.active {
+    color: var(--accent-color);
+}
+
 .demo-toggle-btn {
     flex-shrink: 0;
     background: rgba(255, 255, 255, 0.03);

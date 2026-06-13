@@ -600,20 +600,26 @@ function hideCompatMark(el) {
 }
 
 function saveCategoryFilter() {
-    sessionStorage.setItem(CAT_FILTER_KEY, JSON.stringify([...categoryFilter]));
+    sessionStorage.setItem(CAT_FILTER_KEY, categoryFilterMode);
+}
+
+function isCategoryVisible(catId) {
+    if (categoryFilterMode === 'all') return true;
+    if (categoryFilterMode === 'none') return false;
+    return categoryFilterMode === catId;
 }
 
 function updateCategoryFilterUI() {
     if (catFilterEl) {
         catFilterEl.querySelectorAll('.fx-cat-pill').forEach((pill) => {
             const cat = pill.dataset.cat;
-            if (cat === 'all' || cat === 'none') return;
-            pill.classList.toggle('active', categoryFilter.has(cat));
+            pill.classList.toggle('active', cat === categoryFilterMode);
+            pill.setAttribute('aria-pressed', String(cat === categoryFilterMode));
         });
     }
     if (fxPicker) {
         fxPicker.querySelectorAll('.fx-category').forEach((section) => {
-            section.hidden = !categoryFilter.has(section.dataset.category);
+            section.hidden = !isCategoryVisible(section.dataset.category);
         });
     }
 }
@@ -621,7 +627,7 @@ function updateCategoryFilterUI() {
 function getVisiblePresetIds() {
     const ids = [];
     for (const cat of FX_CATEGORIES) {
-        if (!categoryFilter.has(cat.id)) continue;
+        if (!isCategoryVisible(cat.id)) continue;
         for (const id of cat.presets) {
             if (FX_PRESETS[id]) ids.push(id);
         }
@@ -753,18 +759,28 @@ function fxParam(id, def = 1) {
 
 const CAT_FILTER_KEY = 'asciiline-cat-filter';
 const ALL_CATEGORY_IDS = FX_CATEGORIES.map((c) => c.id);
-let categoryFilter;
-try {
-    const saved = JSON.parse(sessionStorage.getItem(CAT_FILTER_KEY) || '[]');
-    if (Array.isArray(saved) && saved.length > 0) {
-        categoryFilter = new Set(saved.filter((id) => ALL_CATEGORY_IDS.includes(id)));
-    } else {
-        categoryFilter = new Set(ALL_CATEGORY_IDS);
+
+function loadCategoryFilterMode() {
+    const raw = sessionStorage.getItem(CAT_FILTER_KEY);
+    if (!raw) return 'all';
+    if (raw === 'all' || raw === 'none') return raw;
+    if (ALL_CATEGORY_IDS.includes(raw)) return raw;
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            const valid = parsed.filter((id) => ALL_CATEGORY_IDS.includes(id));
+            if (valid.length === 0) return 'none';
+            if (valid.length === ALL_CATEGORY_IDS.length) return 'all';
+            if (valid.length === 1) return valid[0];
+            return 'all';
+        }
+    } catch {
+        // legacy or invalid — default to all
     }
-} catch {
-    categoryFilter = new Set(ALL_CATEGORY_IDS);
+    return 'all';
 }
-if (categoryFilter.size === 0) categoryFilter = new Set(ALL_CATEGORY_IDS);
+
+let categoryFilterMode = loadCategoryFilterMode();
 
 let demoIntervalId = null;
 let demoEnabled = false;
@@ -3133,14 +3149,8 @@ if (catFilterEl) {
         const pill = e.target.closest('.fx-cat-pill');
         if (!pill) return;
         const cat = pill.dataset.cat;
-        if (cat === 'all') {
-            categoryFilter = new Set(ALL_CATEGORY_IDS);
-        } else if (cat === 'none') {
-            categoryFilter = new Set();
-        } else if (categoryFilter.has(cat)) {
-            categoryFilter.delete(cat);
-        } else {
-            categoryFilter.add(cat);
+        if (cat === 'all' || cat === 'none' || ALL_CATEGORY_IDS.includes(cat)) {
+            categoryFilterMode = cat;
         }
         saveCategoryFilter();
         updateCategoryFilterUI();
