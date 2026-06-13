@@ -837,12 +837,23 @@ function updateFxPickerUI() {
         btn.disabled = false;
         btn.dataset.asciiOnly = asciiOnly ? 'true' : 'false';
         btn.dataset.pixelOnly = pixelOnly ? 'true' : 'false';
+        if (asciiOnly) {
+            btn.dataset.switchHint = 'Switches to ASCII';
+        } else if (pixelOnly) {
+            btn.dataset.switchHint = 'Switches to PIXEL';
+        } else {
+            delete btn.dataset.switchHint;
+        }
         btn.setAttribute('aria-selected', String(on));
         btn.setAttribute('aria-pressed', String(on));
         btn.tabIndex = on ? 0 : -1;
         if (on) activeChip = btn;
     });
     buildFxPanel(activeFx);
+    const hudLabel = document.getElementById('hud-look-label');
+    if (hudLabel) {
+        hudLabel.textContent = FX_PRESETS[activeFx]?.label || 'CLEAN';
+    }
     if (activeChip) {
         activeChip.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
@@ -2838,11 +2849,17 @@ window.addEventListener('resize', () => {
 buildFxPicker();
 container.className = FX_PRESETS[activeFx]?.css || 'fx-clean';
 
+function fxGridCols() {
+    if (!fxPicker) return 3;
+    const cols = getComputedStyle(fxPicker).gridTemplateColumns;
+    return cols ? cols.split(' ').length : 3;
+}
+
 if (fxPicker) {
     fxPicker.addEventListener('keydown', (e) => {
         const chips = [...fxPicker.querySelectorAll('.fx-chip')];
         const idx = chips.findIndex((c) => c.dataset.fx === activeFx);
-        const cols = 2;
+        const cols = fxGridCols();
         if (e.key === 'ArrowRight' && idx < chips.length - 1) {
             e.preventDefault();
             chips[idx + 1].focus();

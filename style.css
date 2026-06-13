@@ -15,7 +15,8 @@
     --deck-border: #2a2a32;
     --muted: #8a8a96;
     --studio-header-h: 52px;
-    --control-pane-w: 340px;
+    --control-pane-w: min(460px, 44vw);
+    --canvas-max-w: 640px;
 }
 
 * {
@@ -106,7 +107,7 @@ body {
 
 .studio-layout {
     display: grid;
-    grid-template-columns: 1fr var(--control-pane-w);
+    grid-template-columns: minmax(0, 1fr) var(--control-pane-w);
     height: 100%;
     gap: 0;
 }
@@ -114,8 +115,8 @@ body {
 .studio-canvas-pane {
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 12px 16px;
+    justify-content: flex-end;
+    padding: 10px 12px 10px 16px;
     min-width: 0;
     min-height: 0;
     background: var(--bg-color);
@@ -123,8 +124,8 @@ body {
 
 .player-deck {
     width: 100%;
+    max-width: var(--canvas-max-w);
     height: 100%;
-    max-width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -292,7 +293,7 @@ body {
     justify-content: center;
     gap: 8px;
     background: rgba(0, 0, 0, 0.78);
-    z-index: 10;
+    z-index: 20;
     user-select: none;
     cursor: pointer;
     transition: background 0.2s;
@@ -347,6 +348,50 @@ body {
     font-weight: 300;
 }
 
+/* ── PLAYER HUD (overlay transport on video) ── */
+.player-hud {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.hud-look-label {
+    align-self: flex-start;
+    margin: 10px 12px;
+    padding: 4px 10px;
+    font-family: var(--font-tech);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--accent-secondary);
+    background: rgba(5, 5, 5, 0.72);
+    border: 1px solid rgba(57, 255, 20, 0.35);
+    border-radius: 4px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: none;
+}
+
+.player-hud-bar {
+    pointer-events: auto;
+    margin-top: auto;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(to top, rgba(5, 5, 5, 0.92) 0%, rgba(5, 5, 5, 0.55) 70%, transparent 100%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 10px 12px 12px;
+    gap: 8px;
+}
+
+.player-hud-bar .status {
+    color: rgba(0, 243, 255, 0.85);
+}
 /* ── CONTROL DECK ────────────────────── */
 .control-deck {
     display: flex;
@@ -356,14 +401,11 @@ body {
     overflow: hidden;
 }
 
-/* ── CTRL BAR (top strip: mode / track / vol / copy / status) */
+/* ── CTRL BAR ────────────────────────── */
 .ctrl-bar {
-    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--deck-border);
     flex-wrap: wrap;
 }
 
@@ -518,11 +560,11 @@ body {
 
 .fx-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 5px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
 }
 
-/* Each chip is a compact button */
+/* Compact preset chip — fixed height, no layout shift on hover */
 .fx-chip {
     position: relative;
     background: rgba(255, 255, 255, 0.02);
@@ -531,19 +573,22 @@ body {
     color: #9a9aa8;
     font-family: inherit;
     text-align: left;
-    padding: 6px 8px 5px;
+    padding: 7px 8px 6px;
     cursor: pointer;
-    transition: background 0.13s, border-color 0.13s, color 0.13s;
-    min-height: 42px;
+    transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
+    height: 44px;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 2px;
 }
 
 .fx-chip:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
     border-color: #4a4a58;
     color: #e0e0ee;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .fx-chip:focus-visible {
@@ -611,16 +656,40 @@ body {
     color: var(--accent-secondary);
 }
 
+/* Floating tooltip — does not affect chip layout */
+.fx-chip[data-switch-hint]::before {
+    content: attr(data-switch-hint);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 6px);
+    transform: translateX(-50%) translateY(4px);
+    padding: 4px 8px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    color: #050505;
+    background: var(--accent-color);
+    border-radius: 4px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 0.12s, transform 0.12s;
+}
+
+.fx-chip[data-switch-hint]:hover::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
 .fx-chip[data-ascii-only="true"]:hover {
-    border-style: solid;
     border-color: var(--accent-color);
     color: var(--accent-color);
 }
 
-.fx-chip[data-ascii-only="true"]:hover .fx-chip-tip::after {
-    content: ' — switches to ASCII';
-    color: rgba(0, 243, 255, 0.6);
-    font-size: 9px;
+.fx-chip[data-pixel-only="true"]:hover {
+    border-color: var(--accent-secondary);
+    color: var(--accent-secondary);
 }
 
 /* Animated active dot for interactive presets */
@@ -651,7 +720,7 @@ body {
     flex-shrink: 0;
     background: rgba(255, 255, 255, 0.03);
     border-bottom: 1px solid var(--deck-border);
-    padding: 10px 12px 12px;
+    padding: 12px 14px 14px;
     min-height: 56px;
     transition: border-color 0.2s;
 }
@@ -934,7 +1003,12 @@ body {
 
 @media (max-width: 900px) {
     :root {
-        --control-pane-w: 300px;
+        --control-pane-w: min(400px, 48vw);
+        --canvas-max-w: 100%;
+    }
+
+    .fx-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 
     .track-label {
@@ -953,7 +1027,7 @@ body {
 
     .studio-layout {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(240px, 45vh) 1fr;
+        grid-template-rows: minmax(240px, 42vh) 1fr;
         height: auto;
         min-height: calc(100vh - var(--studio-header-h));
     }
@@ -963,12 +1037,17 @@ body {
     }
 
     .studio-canvas-pane {
+        justify-content: center;
         padding: 8px;
         min-height: 240px;
     }
 
+    .player-deck {
+        max-width: 100%;
+    }
+
     #player-container {
-        max-height: 45vh;
+        max-height: 42vh;
     }
 
     .studio-control-pane {
@@ -985,12 +1064,9 @@ body {
         grid-template-columns: repeat(3, 1fr);
     }
 
-    .ctrl-bar {
-        gap: 6px;
+    .player-hud-bar {
         position: sticky;
-        top: 0;
-        z-index: 5;
-        background: var(--deck-bg);
+        bottom: 0;
     }
 }
 
