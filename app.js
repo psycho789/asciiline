@@ -1091,9 +1091,29 @@ function mountTuningHelpButtons() {
 
 let playerSettingsOpen = false;
 
+function positionSettingsPopover() {
+    if (!playerSettingsPopover || !container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return;
+
+    const width = Math.min(292, Math.max(248, rect.width - 20));
+    const hudReserve = 78;
+    const top = Math.max(10, rect.top + 36);
+    const left = Math.max(10, rect.right - width - 10);
+    const maxHeight = Math.max(220, Math.min(400, rect.bottom - top - hudReserve));
+
+    playerSettingsPopover.style.width = `${width}px`;
+    playerSettingsPopover.style.left = `${left}px`;
+    playerSettingsPopover.style.top = `${top}px`;
+    playerSettingsPopover.style.maxHeight = `${maxHeight}px`;
+}
+
 function setPlayerSettingsOpen(open) {
     playerSettingsOpen = open;
-    if (playerSettingsPopover) playerSettingsPopover.hidden = !open;
+    if (playerSettingsPopover) {
+        playerSettingsPopover.hidden = !open;
+        if (open) positionSettingsPopover();
+    }
     for (const btn of [playerSettingsBtn, playerSettingsFab]) {
         if (!btn) continue;
         btn.setAttribute('aria-expanded', String(open));
@@ -1125,8 +1145,12 @@ function wirePlayerSettings() {
     if (playerSettingsPopover) {
         playerSettingsPopover.addEventListener('click', (e) => e.stopPropagation());
     }
-    document.addEventListener('click', () => {
-        if (playerSettingsOpen) setPlayerSettingsOpen(false);
+    document.addEventListener('click', (e) => {
+        if (!playerSettingsOpen) return;
+        const t = e.target;
+        if (playerSettingsPopover?.contains(t)) return;
+        if (playerSettingsBtn?.contains(t) || playerSettingsFab?.contains(t)) return;
+        setPlayerSettingsOpen(false);
     });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && playerSettingsOpen) setPlayerSettingsOpen(false);
@@ -4226,6 +4250,7 @@ window.addEventListener('resize', () => {
     updateWaveformVis();
     layoutPlayerContainer();
     syncSelectionTransform();
+    if (playerSettingsOpen) positionSettingsPopover();
     if (gridCols > 0 && gridRows > 0 && !pixelMode && renderMode !== 1) {
         if (glyphAtlas) {
             updateGridColsBarLabel(gridCols, gridRows);

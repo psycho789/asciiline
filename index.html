@@ -45,46 +45,6 @@
                                 title="Quality &amp; audio settings" aria-label="Open quality and audio settings"
                                 aria-expanded="false" aria-controls="player-settings-popover">&#9881;</button>
 
-                            <div id="player-settings-popover" class="player-settings-popover" hidden
-                                role="dialog" aria-label="Render and audio settings">
-                                <div class="player-settings-head">
-                                    <span class="player-settings-title">Quality &amp; Reactivity</span>
-                                    <button type="button" id="player-settings-close" class="player-settings-close"
-                                        aria-label="Close settings">&#10005;</button>
-                                </div>
-                                <p class="player-settings-lead">These tune sharpness, frame shape, and how sound drives effects — not the LOOK presets in the sidebar.</p>
-
-                                <section class="player-settings-section" aria-labelledby="settings-grid-heading">
-                                    <div class="player-settings-section-head">
-                                        <h3 id="settings-grid-heading" class="player-settings-section-title">Grid detail</h3>
-                                        <div class="ctrl-help-wrap" data-help-key="grid-cols"></div>
-                                    </div>
-                                    <div class="studio-render-controls" id="studio-render-controls"></div>
-                                </section>
-
-                                <section class="player-settings-section" aria-labelledby="settings-aspect-heading">
-                                    <div class="player-settings-section-head">
-                                        <h3 id="settings-aspect-heading" class="player-settings-section-title">Aspect ratio</h3>
-                                        <div class="ctrl-help-wrap" data-help-key="aspect"></div>
-                                    </div>
-                                    <select id="aspect-select" class="player-aspect-select" aria-label="Output aspect ratio">
-                                        <option value="auto">Auto — match source</option>
-                                        <option value="16:9">16:9 — widescreen</option>
-                                        <option value="4:3">4:3 — classic TV</option>
-                                        <option value="21:9">21:9 — ultrawide</option>
-                                        <option value="1:1">1:1 — square</option>
-                                    </select>
-                                </section>
-
-                                <section class="player-settings-section" aria-labelledby="settings-audio-heading">
-                                    <div class="player-settings-section-head">
-                                        <h3 id="settings-audio-heading" class="player-settings-section-title">Audio reactivity</h3>
-                                        <div class="ctrl-help-wrap" data-help-key="audio-reactive"></div>
-                                    </div>
-                                    <div class="studio-audio-controls" id="studio-audio-controls"></div>
-                                </section>
-                            </div>
-
                             <div class="player-hud" id="player-hud">
                                 <span id="hud-look-label" class="hud-look-label">CLEAN</span>
                                 <div class="ctrl-bar player-hud-bar">
@@ -213,8 +173,47 @@
         </div>
     </div>
 
+    <div id="player-settings-popover" class="player-settings-popover" hidden
+        role="dialog" aria-label="Render and audio settings">
+        <div class="player-settings-head">
+            <span class="player-settings-title">Player settings</span>
+            <button type="button" id="player-settings-close" class="player-settings-close"
+                aria-label="Close settings">&#10005;</button>
+        </div>
+
+        <section class="player-settings-section" aria-labelledby="settings-grid-heading">
+            <div class="player-settings-section-head">
+                <h3 id="settings-grid-heading" class="player-settings-section-title">Grid detail</h3>
+                <div class="ctrl-help-wrap" data-help-key="grid-cols"></div>
+            </div>
+            <div class="studio-render-controls" id="studio-render-controls"></div>
+        </section>
+
+        <section class="player-settings-section" aria-labelledby="settings-aspect-heading">
+            <div class="player-settings-section-head">
+                <h3 id="settings-aspect-heading" class="player-settings-section-title">Aspect ratio</h3>
+                <div class="ctrl-help-wrap" data-help-key="aspect"></div>
+            </div>
+            <select id="aspect-select" class="player-aspect-select" aria-label="Output aspect ratio">
+                <option value="auto">Auto — match source</option>
+                <option value="16:9">16:9 — widescreen</option>
+                <option value="4:3">4:3 — classic TV</option>
+                <option value="21:9">21:9 — ultrawide</option>
+                <option value="1:1">1:1 — square</option>
+            </select>
+        </section>
+
+        <section class="player-settings-section" aria-labelledby="settings-audio-heading">
+            <div class="player-settings-section-head">
+                <h3 id="settings-audio-heading" class="player-settings-section-title">Audio reactivity</h3>
+                <div class="ctrl-help-wrap" data-help-key="audio-reactive"></div>
+            </div>
+            <div class="studio-audio-controls" id="studio-audio-controls"></div>
+        </section>
+    </div>
+
     <script src="client/glyph_atlas.js"></script>
-    <script src="app.js?v=20260612k"></script>
+    <script src="app.js?v=20260612l"></script>
     <svg id="svg-filters" xmlns="http://www.w3.org/2000/svg"
          style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
         <defs>
