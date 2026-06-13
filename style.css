@@ -541,39 +541,147 @@ body {
     50% { box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.3); }
 }
 
-/* ── FX HINT BAR ─────────────────────── */
-.fx-hint {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 9px 12px 10px;
+/* ── FX PANEL ────────────────────────── */
+.fx-panel {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+    padding: 14px 18px 16px;
+    margin-top: 8px;
+    min-height: 72px;
+    transition: border-color 0.2s;
 }
 
-.fx-hint-label {
+.fx-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.fx-panel-name {
     font-family: var(--font-tech);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--accent-secondary);
-    letter-spacing: 1.2px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
-    flex-shrink: 0;
 }
 
-.fx-hint-text {
-    font-size: 12px;
-    color: #686878;
-    line-height: 1.4;
+.fx-panel-badge {
+    font-size: 10px;
+    color: #f0a040;
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+.fx-panel-badge[hidden] { display: none; }
+
+.fx-panel-desc {
+    font-size: 13px;
+    color: #8888a8;
+    line-height: 1.55;
+    margin: 0 0 8px;
     font-weight: 300;
 }
 
-.fx-hint-action {
-    display: inline;
-    margin-left: 6px;
-    font-size: 11px;
+.fx-panel-action {
+    font-size: 12px;
     color: var(--accent-color);
-    font-weight: 400;
-    opacity: 0.8;
+    font-weight: 500;
+    margin: 0 0 10px;
+    opacity: 0.9;
 }
+
+.fx-panel-action[hidden] { display: none; }
+
+/* Sliders */
+.fx-ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 7px 0;
+}
+
+.fx-ctrl-label {
+    min-width: 120px;
+    font-size: 12px;
+    color: #8888a8;
+}
+
+.fx-ctrl-range {
+    flex: 1;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+    height: 4px;
+}
+
+.fx-ctrl-val {
+    min-width: 38px;
+    text-align: right;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-secondary);
+    font-family: var(--font-tech);
+}
+
+/* Font picker buttons */
+.fx-font-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.fx-font-btn {
+    padding: 5px 13px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: transparent;
+    color: #8888a8;
+    cursor: pointer;
+    font-size: 12px;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.fx-font-btn:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #cccce0;
+}
+
+.fx-font-btn.active {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+/* Audio level bar */
+.fx-audio-bar {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.fx-audio-fill {
+    height: 100%;
+    background: var(--accent-color);
+    width: 0%;
+    transition: width 80ms linear;
+    border-radius: 3px;
+}
+
+.fx-audio-label {
+    display: block;
+    font-size: 11px;
+    color: #686878;
+    margin-top: 5px;
+}
+
+/* Audio effect CSS classes */
+.fx-soundwave { filter: brightness(1.05); }
+.fx-spectra   { filter: contrast(1.1) saturate(1.1); }
 
 /* ── FX OVERLAY ──────────────────────── */
 #fx-overlay {
@@ -674,9 +782,8 @@ body {
         width: 60px;
     }
 
-    .fx-hint {
-        flex-direction: column;
-        gap: 3px;
+    .fx-panel {
+        padding: 12px 14px 14px;
     }
 }
 

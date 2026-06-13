@@ -75,13 +75,18 @@
                         <!-- FX grid — wraps naturally, no scroll, all always visible -->
                         <div class="fx-grid-wrap">
                             <div id="fx-picker" class="fx-grid" role="listbox" aria-label="Visual effects"
-                                aria-describedby="fx-hint"></div>
+                                aria-describedby="fx-panel"></div>
                         </div>
 
-                        <!-- Active effect description -->
-                        <div id="fx-hint" class="fx-hint" role="note">
-                            <span class="fx-hint-label">CLEAN</span>
-                            <span class="fx-hint-text">Standard render — no effects applied.</span>
+                        <!-- Active effect panel: name, description, action hint, controls -->
+                        <div id="fx-panel" class="fx-panel" role="region" aria-label="Effect controls">
+                            <div class="fx-panel-head">
+                                <span class="fx-panel-name" id="fx-panel-name">CLEAN</span>
+                                <span class="fx-panel-badge" id="fx-panel-badge"></span>
+                            </div>
+                            <p class="fx-panel-desc" id="fx-panel-desc">The video renders exactly as-is — no modifications.</p>
+                            <p class="fx-panel-action" id="fx-panel-action" hidden></p>
+                            <div class="fx-panel-controls" id="fx-panel-controls"></div>
                         </div>
 
                     </div>

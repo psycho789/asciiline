@@ -16,7 +16,12 @@ const modeAsciiBtn = document.getElementById('mode-ascii');
 const modePixelBtn = document.getElementById('mode-pixel');
 const copyFrameBtn = document.getElementById('copy-frame-btn');
 const fxPicker = document.getElementById('fx-picker');
-const fxHintEl = document.getElementById('fx-hint');
+const fxPanelEl      = document.getElementById('fx-panel');
+const fxPanelName    = document.getElementById('fx-panel-name');
+const fxPanelBadge   = document.getElementById('fx-panel-badge');
+const fxPanelDesc    = document.getElementById('fx-panel-desc');
+const fxPanelAction  = document.getElementById('fx-panel-action');
+const fxPanelControls = document.getElementById('fx-panel-controls');
 const trackPrevBtn = document.getElementById('track-prev');
 const trackNextBtn = document.getElementById('track-next');
 
@@ -96,6 +101,7 @@ const FX_PRESETS = {
         label: 'CLEAN',
         tip: 'Standard render — no effects',
         hint: 'Standard render with source colors — ASCII uses characters, PIXEL uses colored blocks.',
+        fullDesc: 'The video renders exactly as-is — no modifications. ASCII mode maps pixel brightness to characters; PIXEL mode renders colored blocks.',
         css: 'fx-clean',
         asciiOnly: false,
         pixelOk: true,
@@ -105,6 +111,7 @@ const FX_PRESETS = {
         tip: 'Chromatic split',
         hint: 'Three offset layers in red, green, and blue — holographic terminal bleed.',
         hintAscii: 'Three offset text layers composited like a holographic terminal.',
+        fullDesc: 'The frame is drawn three times — red, green, and blue — each shifted slightly apart. The overlap creates a holographic chromatic split effect.',
         css: 'fx-triglyph',
         asciiOnly: true,
         pixelOk: true,
@@ -113,6 +120,7 @@ const FX_PRESETS = {
         label: 'BRAILLE',
         tip: 'Unicode braille blocks',
         hint: 'Brightness maps to braille dot density — a completely different typographic alphabet.',
+        fullDesc: 'Each area of the video maps to a Braille symbol. More dots = brighter. Fewer dots = darker. The whole image becomes a living Braille display.',
         css: 'fx-braille',
         asciiOnly: true,
     },
@@ -120,6 +128,7 @@ const FX_PRESETS = {
         label: 'HALFTONE',
         tip: 'Two-symbol print',
         hint: 'The frame collapses to block and dot characters — letterpress halftone made of pure text.',
+        fullDesc: 'The entire image is reduced to just two characters — a filled block for bright areas, a tiny dot for dark. Like a high-contrast letterpress print.',
         css: 'fx-duotone',
         asciiOnly: true,
     },
@@ -127,6 +136,7 @@ const FX_PRESETS = {
         label: 'TYPE',
         tip: 'Teletype scan reveal',
         hint: 'Each frame prints left to right with a blinking cursor, like live teletype output.',
+        fullDesc: 'Each video frame gets typed out from left to right with a blinking cursor — like a teletype machine printing a live transmission in real time.',
         css: 'fx-typewriter',
         asciiOnly: true,
     },
@@ -134,6 +144,11 @@ const FX_PRESETS = {
         label: 'CORRUPT',
         tip: 'Buffer glitch',
         hint: 'Random rectangles of garbled characters simulate memory corruption of the text buffer.',
+        fullDesc: 'Randomly trashes large blocks of characters to simulate corrupted video memory — like a broken file being read from a failing drive. Use the sliders below to control how intense and how big the glitches are.',
+        controls: [
+            { id: 'corrupt-intensity', label: 'How intense?', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+            { id: 'corrupt-size',      label: 'Zone size',    min: 0.3, max: 2.5, step: 0.1, def: 1.0 },
+        ],
         css: 'fx-corrupt',
         asciiOnly: true,
     },
@@ -141,7 +156,8 @@ const FX_PRESETS = {
         label: 'SELECT',
         tip: 'Highlight live text',
         hint: 'Drag across the player to select live video text — readable glyphs pop over the color layer.',
-        action: 'Drag to select text on the player.',
+        fullDesc: 'The video is made of real, selectable characters. Drag to highlight any region — you can copy the ASCII art directly from a live video frame.',
+        action: 'Click and drag across the video to highlight and copy characters.',
         css: 'fx-selection',
         asciiOnly: true,
         interactive: true,
@@ -151,6 +167,10 @@ const FX_PRESETS = {
         tip: 'Afterimage trail',
         hint: 'Previous frames smear behind new ones — CRT phosphor persistence.',
         hintAscii: 'Glyph-shaped afterimages as characters fade into the next frame.',
+        fullDesc: 'Previous frames fade slowly behind the current one, exactly like a CRT monitor that keeps glowing after the image changes. Fast motion leaves long trails.',
+        controls: [
+            { id: 'phosphor-trail', label: 'Trail length', min: 0.30, max: 0.96, step: 0.01, def: 0.78 },
+        ],
         css: 'fx-phosphor',
         asciiOnly: true,
         pixelOk: true,
@@ -160,6 +180,7 @@ const FX_PRESETS = {
         tip: 'Heatmap',
         hint: 'Brightness mapped to a cold-to-hot color ramp.',
         hintAscii: 'Character color follows brightness as temperature.',
+        fullDesc: 'Pixel brightness maps to a temperature color scale — dark areas are cold (black/blue), bright areas are hot (yellow/red). Like a thermal camera.',
         css: 'fx-thermal',
         asciiOnly: true,
         pixelOk: true,
@@ -169,15 +190,18 @@ const FX_PRESETS = {
         tip: 'Broadcast rows',
         hint: 'Odd and even rows update on alternating frames with scanlines.',
         hintAscii: 'Grid-native broadcast signal — only odd or even rows refresh each frame.',
+        fullDesc: 'Odd-numbered and even-numbered rows update on alternating frames — exactly how broadcast TV worked. The gaps between rows create visible scanlines.',
         css: 'fx-interlace',
         asciiOnly: true,
         pixelOk: true,
     },
     'font-morph': {
         label: 'FONTS',
-        tip: 'Cycle typeface',
+        tip: 'Change typeface',
         hint: 'Same frame, different typeface — the image changes because glyphs are the pixels.',
-        action: 'Click FONTS again to cycle typeface.',
+        fullDesc: 'Because characters ARE the pixels, switching the typeface changes the entire look of the video. Pick any of the four typefaces below — each produces a completely different visual.',
+        fontButtons: true,
+        action: 'Pick a typeface below.',
         css: 'fx-font-morph',
         asciiOnly: true,
         interactive: true,
@@ -186,7 +210,12 @@ const FX_PRESETS = {
         label: 'RIPPLE',
         tip: 'Click the grid',
         hint: 'Click the player to send a radial wave through the character field.',
-        action: 'Click anywhere on the player while playing.',
+        fullDesc: 'Click anywhere on the video to send a wave rippling outward through the characters. The wave distorts each character it passes. Use the sliders to control how large and how fast the waves travel.',
+        action: 'Click anywhere on the video to create a ripple.',
+        controls: [
+            { id: 'ripple-size',  label: 'Wave size',  min: 0.5, max: 4.0, step: 0.1, def: 1.0 },
+            { id: 'ripple-speed', label: 'Wave speed', min: 0.4, max: 2.5, step: 0.1, def: 1.0 },
+        ],
         css: 'fx-ripple',
         asciiOnly: true,
         interactive: true,
@@ -196,6 +225,7 @@ const FX_PRESETS = {
         tip: 'Retro broadcast',
         hint: 'Scanlines, vignette, interlaced rows, and phosphor-green hot highlights.',
         hintAscii: 'Interlaced rows, scanlines, vignette, and phosphor-green on dense characters.',
+        fullDesc: 'Simulates an old CRT television — horizontal scanlines, dark vignette borders, and phosphor-green highlights on the brightest characters.',
         css: 'fx-broadcast',
         asciiOnly: true,
         pixelOk: true,
@@ -205,17 +235,56 @@ const FX_PRESETS = {
         tip: 'Audio-reactive',
         hint: 'Bass widens RGB split and boosts phosphor smear — turn volume up.',
         hintAscii: 'Bass corrupts the buffer, widens RGB split, and speeds teletype reveal.',
-        action: 'Turn volume up — reacts to the video soundtrack.',
+        fullDesc: 'The video\'s own audio drives the visuals in real time — bass notes widen the RGB color split, boost the phosphor trail, and corrupt the buffer. Turn the volume up for full effect.',
+        action: 'Turn volume up — the audio track controls the effect.',
+        audioLevel: true,
         css: 'fx-resonate',
         asciiOnly: true,
         pixelOk: true,
+        interactive: true,
+    },
+    soundwave: {
+        label: 'WAVEFORM',
+        tip: 'Audio warps the image',
+        hint: 'The audio waveform bends every column — louder = more warp. Bass beats fire ripples.',
+        fullDesc: 'The audio waveform physically bends the image — each column shifts up or down based on the sound at that exact moment. Silence = still. Loud music = violent distortion. Bass drops also fire ripples.',
+        action: 'Turn volume up — every sound physically warps the image.',
+        audioLevel: true,
+        css: 'fx-soundwave fx-ripple',
+        asciiOnly: true,
+        interactive: true,
+    },
+    beatstrike: {
+        label: 'BEATFIRE',
+        tip: 'Beat-triggered ripples',
+        hint: 'Each detected beat fires a ripple scaled to its intensity — light taps, massive drops all look different.',
+        fullDesc: 'Every detected beat fires a ripple wave. Light taps send small rings; hard hits launch double novas; massive bass drops blast multi-ring explosions outward. The harder the beat, the bigger the effect.',
+        action: 'Turn volume up — every beat launches a ripple wave.',
+        audioLevel: true,
+        css: 'fx-beatstrike fx-ripple',
+        asciiOnly: true,
+        interactive: true,
+    },
+    spectra: {
+        label: 'SPECTRA',
+        tip: 'Frequency-band distortion',
+        hint: 'Each horizontal band maps to a frequency — bass rows tear on kicks, mids shift on snares.',
+        fullDesc: 'Each horizontal strip of the image is tied to a specific frequency range. The low-frequency (bass) strips at the bottom tear sideways on kick drums. Mid-frequency strips shift on snares. The whole image becomes an EQ visualizer.',
+        action: 'Turn volume up — different instruments distort different parts of the image.',
+        audioLevel: true,
+        css: 'fx-spectra',
+        asciiOnly: true,
         interactive: true,
     },
     'auto-ripple': {
         label: 'GHOST',
         tip: 'Autonomous ripple engine',
         hint: 'Random patterns — nova bursts, scatter shots, chain blasts, quakes — fire on their own schedule.',
-        action: 'Click the player to add your own ripples to the chaos.',
+        fullDesc: 'An autonomous ripple engine runs on its own — firing tsunamis, spirals, shatters, interference waves, and more on a random schedule. You can also click the video to add your own. Use the slider to control how chaotic it gets.',
+        action: 'Click the video to add your own ripples to the chaos.',
+        controls: [
+            { id: 'ghost-chaos', label: 'Chaos level', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+        ],
         css: 'fx-ripple fx-auto-ripple',
         asciiOnly: true,
         interactive: true,
@@ -223,7 +292,11 @@ const FX_PRESETS = {
     hole: {
         label: 'HOLE',
         tip: 'Singularity tears space',
-        hint: 'A singularity drifts through the grid, warping characters into the accretion disk and devouring them at the event horizon.',
+        hint: 'A singularity drifts through the grid, warping characters toward it and devouring them at the event horizon.',
+        fullDesc: 'A black hole drifts through the character grid. Nearby characters bend toward it — the closer they get, the more they warp. Characters that reach the event horizon are devoured. Use the slider to control its gravitational pull.',
+        controls: [
+            { id: 'hole-gravity', label: 'Gravity strength', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+        ],
         css: 'fx-hole',
         asciiOnly: true,
     },
@@ -231,6 +304,7 @@ const FX_PRESETS = {
         label: 'REND',
         tip: 'Reality tears apart',
         hint: 'The frame rips along a random fracture — both halves drift apart, exposing the void between them, then it heals and tears again.',
+        fullDesc: 'The video frame tears apart along a diagonal line. The two halves drift away from each other, exposing a glowing void between them, then the tear heals — and rips again somewhere else.',
         css: 'fx-rend',
         asciiOnly: true,
     },
@@ -238,10 +312,24 @@ const FX_PRESETS = {
         label: 'MELT',
         tip: 'Columns drip downward',
         hint: 'Each column drips at a different speed — the image slowly runs and pools like paint, then cycles.',
+        fullDesc: 'Each column of the image drips downward at its own random speed, like wet paint running. The image slowly pools and smears before resetting. Use the slider to control how fast it melts.',
+        controls: [
+            { id: 'melt-speed', label: 'Drip speed', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+        ],
         css: 'fx-melt',
         asciiOnly: true,
     },
 };
+
+// Populate fxParams defaults from FX_PRESETS controls definitions
+const fxParams = {};
+for (const preset of Object.values(FX_PRESETS)) {
+    if (preset.controls) {
+        for (const ctrl of preset.controls) {
+            fxParams[ctrl.id] = ctrl.def;
+        }
+    }
+}
 
 const CHAR_LUT = new Array(256);
 for (let i = 0; i < 256; i++) CHAR_LUT[i] = String.fromCharCode(i);
@@ -305,7 +393,15 @@ let meltColPhase = null;
 let audioCtx = null;
 let analyser = null;
 let audioSource = null;
-let audioEnergy = 0;
+let audioEnergy = 0;    // bass energy 0-1 (backward compat)
+let audioRms = 0;       // RMS volume 0-1
+let audioBass = 0;      // low-freq energy 0-1
+let audioFreqData = null;  // Uint8Array frequency bins
+let audioWaveform = null;  // Uint8Array time-domain samples
+let audioBeat = false;     // true this frame if beat detected
+let audioBeatHistory = null;
+let audioBeatIdx = 0;
+let lastBeatAt = 0;
 let triglyphOffset = 2;
 let pixelHold = null;
 
@@ -371,7 +467,7 @@ function applyFx(id, { cycleFont = false } = {}) {
     resetFxState();
     updateFxPickerUI();
 
-    if (id === 'resonate' && state === 'PLAYING') initAudioAnalyser();
+    if (AUDIO_REACTIVE_FX.has(id) && state === 'PLAYING') initAudioAnalyser();
     if (id === 'hole') initHole();
     if (id === 'rend') initRend();
     if (id === 'melt') initMelt();
@@ -380,52 +476,125 @@ function applyFx(id, { cycleFont = false } = {}) {
         buildCanvas(gridCols, gridRows);
     }
 
-    updateFxHint();
+    buildFxPanel(activeFx);
 }
 
-function updateFxHint() {
-    if (!fxHintEl) return;
-    const preset = FX_PRESETS[activeFx] || FX_PRESETS.clean;
-    const labelEl = fxHintEl.querySelector('.fx-hint-label');
-    const textEl = fxHintEl.querySelector('.fx-hint-text');
+function buildFxPanel(id) {
+    if (!fxPanelEl) return;
+    const preset = FX_PRESETS[id] || FX_PRESETS.clean;
+    const FONT_NAMES = ['Courier', 'VT323', 'IBM Plex Mono', 'Press Start 2P'];
 
+    // Name + optional font badge
     let label = preset.label;
-    if (activeFx === 'font-morph') {
-        const names = ['Courier', 'VT323', 'IBM Plex', 'Press Start 2P'];
-        label = `${preset.label} · ${names[fontMorphIndex]}`;
+    if (id === 'font-morph') label = `${preset.label} · ${FONT_NAMES[fontMorphIndex]}`;
+    if (fxPanelName) fxPanelName.textContent = label;
+
+    // Badge: ASCII-only warning when in pixel mode
+    if (fxPanelBadge) {
+        const isAsciiOnly = pixelMode && preset.asciiOnly && !preset.pixelOk;
+        fxPanelBadge.textContent = isAsciiOnly ? 'ASCII only — switch to ASCII mode for full effect' : '';
+        fxPanelBadge.hidden = !isAsciiOnly;
     }
 
-    if (labelEl) labelEl.textContent = label;
-
-    let body = preset.hint || preset.tip;
-    if (pixelMode && preset.hintAscii && !preset.pixelOk) {
-        body = preset.hintAscii;
-    } else if (pixelMode && preset.pixelOk && preset.hint) {
-        body = preset.hint;
-    } else if (!pixelMode && preset.hintAscii) {
-        body = preset.hintAscii;
-    } else if (preset.hint) {
-        body = preset.hint;
-    }
-
-    if (pixelMode && preset.asciiOnly && !preset.pixelOk) {
-        body = 'This preset is ASCII-only — typographic effects need the character grid. Switch to ASCII mode.';
-    } else if (!pixelMode && preset.asciiOnly && preset.pixelOk) {
-        body = body + ' Also works in PIXEL mode with canvas-native rendering.';
-    }
-
-    if (textEl) {
-        textEl.innerHTML = '';
-        const main = document.createElement('span');
-        main.textContent = body;
-        textEl.appendChild(main);
-        if (preset.action && (!pixelMode || preset.pixelOk)) {
-            const action = document.createElement('span');
-            action.className = 'fx-hint-action';
-            action.textContent = preset.action;
-            textEl.appendChild(action);
+    // Description — use fullDesc first, fall back to hint
+    if (fxPanelDesc) {
+        let body = preset.fullDesc || preset.hint || preset.tip || '';
+        if (pixelMode && preset.asciiOnly && !preset.pixelOk) {
+            body = 'This effect needs the ASCII character grid. Click the ASCII button above to switch modes.';
         }
+        fxPanelDesc.textContent = body;
     }
+
+    // Action hint
+    if (fxPanelAction) {
+        const showAction = preset.action && (!pixelMode || preset.pixelOk);
+        fxPanelAction.textContent = showAction ? `→ ${preset.action}` : '';
+        fxPanelAction.hidden = !showAction;
+    }
+
+    // Controls area
+    if (!fxPanelControls) return;
+    fxPanelControls.innerHTML = '';
+
+    if (preset.fontButtons) {
+        // Font picker buttons
+        const row = document.createElement('div');
+        row.className = 'fx-font-row';
+        FONT_NAMES.forEach((name, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'fx-font-btn' + (idx === fontMorphIndex ? ' active' : '');
+            btn.textContent = name;
+            btn.title = `Switch to ${name} typeface`;
+            btn.addEventListener('click', () => {
+                fontMorphIndex = idx;
+                sessionStorage.setItem('asciiline-font-idx', String(idx));
+                if (state === 'PLAYING' && !pixelMode && gridCols > 0) buildCanvas(gridCols, gridRows);
+                buildFxPanel(activeFx);
+            });
+            row.appendChild(btn);
+        });
+        fxPanelControls.appendChild(row);
+
+    } else if (preset.audioLevel) {
+        // Audio level bar
+        const barWrap = document.createElement('div');
+        barWrap.className = 'fx-audio-bar';
+        barWrap.title = 'Live audio level';
+        const barFill = document.createElement('div');
+        barFill.className = 'fx-audio-fill';
+        barFill.id = 'fx-audio-fill';
+        barWrap.appendChild(barFill);
+        const barLabel = document.createElement('span');
+        barLabel.className = 'fx-audio-label';
+        barLabel.textContent = 'Turn volume up for full effect';
+        fxPanelControls.appendChild(barWrap);
+        fxPanelControls.appendChild(barLabel);
+
+    } else if (preset.controls) {
+        // Sliders
+        preset.controls.forEach((ctrl) => {
+            const row = document.createElement('div');
+            row.className = 'fx-ctrl-row';
+
+            const lbl = document.createElement('label');
+            lbl.className = 'fx-ctrl-label';
+            lbl.textContent = ctrl.label;
+            lbl.setAttribute('for', `fx-ctrl-${ctrl.id}`);
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.id = `fx-ctrl-${ctrl.id}`;
+            slider.className = 'fx-ctrl-range';
+            slider.min = String(ctrl.min);
+            slider.max = String(ctrl.max);
+            slider.step = String(ctrl.step);
+            slider.value = String(fxParams[ctrl.id] ?? ctrl.def);
+            slider.setAttribute('aria-label', ctrl.label);
+
+            const valDisplay = document.createElement('output');
+            valDisplay.className = 'fx-ctrl-val';
+            valDisplay.setAttribute('for', `fx-ctrl-${ctrl.id}`);
+            valDisplay.textContent = slider.value;
+
+            slider.addEventListener('input', () => {
+                fxParams[ctrl.id] = parseFloat(slider.value);
+                valDisplay.textContent = slider.value;
+            });
+
+            row.appendChild(lbl);
+            row.appendChild(slider);
+            row.appendChild(valDisplay);
+            fxPanelControls.appendChild(row);
+        });
+    }
+}
+
+function updateAudioLevelBar() {
+    const fill = document.getElementById('fx-audio-fill');
+    if (!fill) return;
+    const pct = Math.min(100, Math.round((audioRms || 0) * 400));
+    fill.style.width = `${pct}%`;
 }
 
 function updateFxPickerUI() {
@@ -442,7 +611,7 @@ function updateFxPickerUI() {
         btn.setAttribute('aria-pressed', String(on));
         btn.tabIndex = on ? 0 : -1;
     });
-    updateFxHint();
+    buildFxPanel(activeFx);
 }
 
 function buildFxPicker() {
@@ -455,7 +624,7 @@ function buildFxPicker() {
         btn.dataset.fx = id;
         if (preset.interactive) btn.dataset.interactive = 'true';
         btn.setAttribute('role', 'option');
-        btn.setAttribute('aria-describedby', 'fx-hint');
+        btn.setAttribute('aria-describedby', 'fx-panel');
 
         const nameEl = document.createElement('span');
         nameEl.className = 'fx-chip-name';
@@ -509,38 +678,82 @@ function initAudioAnalyser() {
     }
 }
 
-function updateAudioEnergy() {
-    if (!analyser || effectiveFx() !== 'resonate') {
+const AUDIO_REACTIVE_FX = new Set(['resonate', 'soundwave', 'beatstrike', 'spectra']);
+
+function updateAudioEnergy(now) {
+    const fx = effectiveFx();
+    if (!analyser || !AUDIO_REACTIVE_FX.has(fx)) {
         audioEnergy = 0;
+        audioRms = 0;
+        audioBass = 0;
+        audioBeat = false;
         container.classList.remove('fx-beat');
         return;
     }
-    const bins = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(bins);
-    let bass = 0;
-    for (let i = 0; i < 10; i++) bass += bins[i];
-    audioEnergy = bass / (10 * 255);
-    triglyphOffset = 2 + Math.floor(audioEnergy * 4);
-    container.classList.toggle('fx-beat', audioEnergy > 0.55);
 
-    if (audioEnergy > 0.65 && performance.now() >= nextCorruptAt) {
+    // Frequency domain
+    if (!audioFreqData || audioFreqData.length !== analyser.frequencyBinCount)
+        audioFreqData = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(audioFreqData);
+
+    // Time domain (waveform)
+    if (!audioWaveform || audioWaveform.length !== analyser.fftSize)
+        audioWaveform = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(audioWaveform);
+
+    // Bass energy (bins 0-9)
+    let bass = 0;
+    for (let i = 0; i < 10; i++) bass += audioFreqData[i];
+    audioBass = bass / (10 * 255);
+    audioEnergy = audioBass; // backward compat
+
+    // RMS from waveform
+    let rmsSum = 0;
+    for (let i = 0; i < audioWaveform.length; i++) {
+        const s = (audioWaveform[i] - 128) / 128;
+        rmsSum += s * s;
+    }
+    audioRms = Math.sqrt(rmsSum / audioWaveform.length);
+
+    // Beat detection — fire when bass spikes above local history average
+    if (!audioBeatHistory) audioBeatHistory = new Float32Array(44);
+    audioBeatHistory[audioBeatIdx] = audioBass;
+    audioBeatIdx = (audioBeatIdx + 1) % audioBeatHistory.length;
+    let histAvg = 0;
+    for (let i = 0; i < audioBeatHistory.length; i++) histAvg += audioBeatHistory[i];
+    histAvg /= audioBeatHistory.length;
+    audioBeat = audioBass > histAvg * 1.5 && audioBass > 0.18 && (now - lastBeatAt) > 260;
+    if (audioBeat) lastBeatAt = now;
+
+    triglyphOffset = 2 + Math.floor(audioBass * 4);
+    container.classList.toggle('fx-beat', audioBass > 0.55);
+
+    if (fx === 'resonate' && audioBass > 0.65 && now >= nextCorruptAt) {
         spawnCorruptZone();
-        nextCorruptAt = performance.now() + 200;
+        nextCorruptAt = now + 200;
     }
 }
 
 function spawnCorruptZone() {
     if (gridCols < 4 || gridRows < 4) return;
-    const h = 2 + Math.floor(Math.random() * 8);
-    const w = 4 + Math.floor(Math.random() * 20);
+    const sz = fxParams['corrupt-size'] ?? 1.0;
+    // 15% chance: full-width tear band (entire row width, very dramatic)
+    const fullBand = Math.random() < 0.15;
+    const h = fullBand
+        ? Math.round((2 + Math.floor(Math.random() * 3)) * sz)
+        : Math.round((5 + Math.floor(Math.random() * 16)) * sz);
+    const w = fullBand
+        ? gridCols
+        : Math.round((10 + Math.floor(Math.random() * 38)) * sz);
     const row0 = Math.floor(Math.random() * Math.max(1, gridRows - h));
-    const col0 = Math.floor(Math.random() * Math.max(1, gridCols - w));
+    const col0 = fullBand ? 0 : Math.floor(Math.random() * Math.max(1, gridCols - w));
     const chars = new Uint8Array(h * w);
     for (let i = 0; i < chars.length; i++) {
         chars[i] = CORRUPT_CHARS.charCodeAt(Math.floor(Math.random() * CORRUPT_CHARS.length));
     }
+    const maxZones = Math.round(10 + (fxParams['corrupt-intensity'] ?? 1.0) * 4);
     corruptZones.push({ row0, row1: row0 + h - 1, col0, col1: col0 + w - 1, decay: 4, chars });
-    if (corruptZones.length > 6) corruptZones.shift();
+    if (corruptZones.length > maxZones) corruptZones.shift();
 }
 
 function updateCorrupt(now) {
@@ -549,7 +762,8 @@ function updateCorrupt(now) {
 
     if (fx === 'corrupt' && now >= nextCorruptAt) {
         spawnCorruptZone();
-        nextCorruptAt = now + 800 + Math.random() * 700;
+        const intensity = fxParams['corrupt-intensity'] ?? 1.0;
+        nextCorruptAt = now + (300 + Math.random() * 500) / intensity;
     }
 
     corruptZones = corruptZones.filter((z) => {
@@ -951,10 +1165,49 @@ function tickAutoRipple(now) {
         scheduleAutoRipplePattern(now);
         // Wide variance: short gap for quick patterns, longer gap after heavy ones
         const r = Math.random();
-        const gap = r < 0.15 ? 400 + Math.random() * 600      // 15%: very fast back-to-back
-                  : r < 0.6  ? 800 + Math.random() * 1800     // 45%: normal
-                  :             2200 + Math.random() * 2800;   // 40%: longer pause
-        autoRippleNextAt = now + gap;
+        const baseGap = r < 0.15 ? 400 + Math.random() * 600      // 15%: very fast back-to-back
+                       : r < 0.6  ? 800 + Math.random() * 1800     // 45%: normal
+                       :             2200 + Math.random() * 2800;   // 40%: longer pause
+        const chaos = fxParams['ghost-chaos'] ?? 1.0;
+        autoRippleNextAt = now + baseGap / chaos;
+    }
+}
+
+function tickBeatstrike(now) {
+    const fx = effectiveFx();
+    if ((fx !== 'beatstrike' && fx !== 'soundwave') || state !== 'PLAYING' || pixelMode) return;
+    if (!audioBeat || gridCols === 0 || gridRows === 0) return;
+
+    const rC = () => 1 + Math.floor(Math.random() * (gridCols - 2));
+    const rR = () => 1 + Math.floor(Math.random() * (gridRows - 2));
+    const rCs = () => AUTO_RIPPLE_CHAR_SETS[Math.floor(Math.random() * AUTO_RIPPLE_CHAR_SETS.length)];
+
+    if (audioBass > 0.72) {
+        // Massive hit — burst of 5 rings from a cluster of origins
+        const oc = rC(), or_ = rR();
+        for (let i = 0; i < 5; i++) {
+            const ang = (i / 5) * Math.PI * 2;
+            fireRippleAt(
+                oc + Math.cos(ang) * 10, or_ + Math.sin(ang) * 5, now,
+                { speed: 0.12 + audioBass * 0.20, duration: 750,
+                  width: 3.5 + audioBass * 3.0, charSet: '\u2588\u2593\u2592\u2591' }
+            );
+        }
+    } else if (audioBass > 0.44) {
+        // Strong hit — double nova, staggered speeds
+        const c = rC(), r = rR();
+        fireRippleAt(c, r, now,
+            { speed: 0.10 + audioBass * 0.12, duration: 650, width: 2.5 + audioBass * 2, charSet: '#@!$%' });
+        fireRippleAt(c, r, now + 110,
+            { speed: 0.24 + audioBass * 0.08, duration: 420, width: 1.8, charSet: '~\\/-|' });
+    } else {
+        // Light tap — single ripple, sized to bass energy
+        fireRippleAt(rC(), rR(), now, {
+            speed: 0.08 + audioBass * 0.12,
+            duration: 380 + audioBass * 300,
+            width: 1.2 + audioBass * 2.5,
+            charSet: rCs(),
+        });
     }
 }
 
@@ -1074,7 +1327,8 @@ function applyPostFx() {
     const usePhosphor = fx === 'phosphor' || (fx === 'resonate' && audioEnergy > 0.35);
     if (!usePhosphor || !trailCanvas) return;
 
-    trailCtx.globalAlpha = fx === 'resonate' ? 0.72 + audioEnergy * 0.12 : 0.78;
+    const trailBase = fxParams['phosphor-trail'] ?? 0.78;
+    trailCtx.globalAlpha = fx === 'resonate' ? Math.min(0.97, trailBase + audioEnergy * 0.12) : trailBase;
     trailCtx.drawImage(trailCanvas, 0, 0);
     trailCtx.globalAlpha = 1;
     trailCtx.drawImage(canvas, 0, 0);
@@ -1551,8 +1805,9 @@ function distortCell(col, row) {
         const dx = col - holeX;
         const dy = (row - holeY) * 1.8;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        const gravMul = fxParams['hole-gravity'] ?? 1.0;
         const HORIZON = 2.1 + holePulse * 1.3;
-        const STRENGTH = 2.0 + holePulse * 3.8;
+        const STRENGTH = (2.0 + holePulse * 3.8) * gravMul;
 
         if (dist < HORIZON) {
             const edge = dist / HORIZON;
@@ -1615,12 +1870,53 @@ function distortCell(col, row) {
 
     if (fx === 'melt' && meltColSpeeds && col < meltColSpeeds.length) {
         const elapsed = performance.now() - meltStartTime;
-        const drift = meltColSpeeds[col] * elapsed + meltColPhase[col];
+        const drift = meltColSpeeds[col] * elapsed * (fxParams['melt-speed'] ?? 1.0) + meltColPhase[col];
         const driftRow = Math.floor(drift);
         const wobble = Math.sin((row * 0.28 + drift * 0.08) * Math.PI) * 1.8;
         const srcRow = ((row - driftRow) % gridRows + gridRows) % gridRows;
         const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + wobble)));
         return { srcCol, srcRow, override: null };
+    }
+
+    // SOUNDWAVE — audio waveform bends rows; amplitude scales with RMS volume
+    if (fx === 'soundwave' || fx === 'beatstrike') {
+        if (audioWaveform && audioWaveform.length >= 2) {
+            // Linearly interpolate waveform samples → smooth per-column displacement
+            const t = (col / Math.max(1, gridCols - 1)) * (audioWaveform.length - 2);
+            const i0 = Math.floor(t);
+            const i1 = i0 + 1;
+            const frac = t - i0;
+            const wSample = audioWaveform[i0] * (1 - frac) + audioWaveform[i1] * frac;
+            const wave = (wSample - 128) / 128; // −1 … +1
+
+            if (fx === 'soundwave') {
+                // Vertical displacement — columns undulate up/down with waveform
+                const amplitude = 2 + audioRms * 32;
+                const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + wave * amplitude)));
+                // Subtle horizontal shimmer from waveform derivative
+                const deriv = (audioWaveform[Math.min(audioWaveform.length - 1, i1 + 1)] - audioWaveform[i0]) / 256;
+                const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + deriv * audioRms * 12)));
+                return { srcCol, srcRow, override: null };
+            }
+        }
+        // beatstrike: no coordinate distortion — only fires ripples via tickBeatstrike
+        return { srcCol: col, srcRow: row, override: null };
+    }
+
+    // SPECTRA — each horizontal band maps to a frequency; high amplitude → sideways shift
+    if (fx === 'spectra') {
+        if (audioFreqData && audioFreqData.length > 0) {
+            // Map rows to frequency bins: bottom rows → bass, top rows → mids
+            const binIdx = Math.floor((1 - row / Math.max(1, gridRows - 1)) * Math.min(audioFreqData.length - 1, 80));
+            const amp = audioFreqData[binIdx] / 255; // 0 → 1
+            // Alternating shift direction creates a "torn bands" aesthetic
+            const dir = Math.sin(row * 0.8) >= 0 ? 1 : -1;
+            const maxShift = 4 + amp * 20 + audioRms * 14;
+            const shift = Math.round(dir * amp * maxShift);
+            const srcCol = Math.max(0, Math.min(gridCols - 1, col + shift));
+            return { srcCol, srcRow: row, override: null };
+        }
+        return { srcCol: col, srcRow: row, override: null };
     }
 
     return { srcCol: col, srcRow: row, override: null };
@@ -1630,9 +1926,11 @@ function processFrame(now) {
     if (state !== 'PLAYING' || video.paused || video.ended) return;
 
     frameParity = 1 - frameParity;
-    updateAudioEnergy();
+    updateAudioEnergy(now);
+    updateAudioLevelBar();
     updateCorrupt(now);
     tickAutoRipple(now);
+    tickBeatstrike(now);
     tickHole(now);
     tickRend(now);
 
@@ -1742,7 +2040,7 @@ async function startStream() {
         video.volume = volumeSlider ? parseFloat(volumeSlider.value) : 1;
         await video.play();
         state = 'PLAYING';
-        if (effectiveFx() === 'resonate') initAudioAnalyser();
+        if (AUDIO_REACTIVE_FX.has(effectiveFx())) initAudioAnalyser();
         if (effectiveFx() === 'hole') initHole();
         if (effectiveFx() === 'rend') initRend();
         if (effectiveFx() === 'melt') initMelt();
@@ -1789,7 +2087,7 @@ async function restartWithMode() {
         if (wasPlaying) {
             await video.play();
             state = 'PLAYING';
-            if (effectiveFx() === 'resonate') initAudioAnalyser();
+            if (AUDIO_REACTIVE_FX.has(effectiveFx())) initAudioAnalyser();
             if (effectiveFx() === 'hole') initHole();
             if (effectiveFx() === 'rend') initRend();
             if (effectiveFx() === 'melt') initMelt();
@@ -1847,7 +2145,13 @@ container.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#play-overlay')) return;
     const { col, row } = pointerToGrid(e.clientX, e.clientY);
     if (col < 0 || col >= gridCols || row < 0 || row >= gridRows) return;
-    fireRippleAt(col, row, performance.now(), {});
+    const sizeMul  = fxParams['ripple-size']  ?? 1.0;
+    const speedMul = fxParams['ripple-speed'] ?? 1.0;
+    fireRippleAt(col, row, performance.now(), {
+        width: 1.8 * sizeMul,
+        speed: 0.12 * speedMul,
+        duration: 500,
+    });
     container.setPointerCapture(e.pointerId);
 });
 
@@ -1939,7 +2243,6 @@ loadConfig()
         updateModeToggleUI();
         updateCopyFrameButton();
         updateFxPickerUI();
-        updateFxHint();
     })
     .catch((err) => {
         statusEl.textContent = err.message;
