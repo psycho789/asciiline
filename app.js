@@ -22,6 +22,8 @@ const fxPanelBadge   = document.getElementById('fx-panel-badge');
 const fxPanelDesc    = document.getElementById('fx-panel-desc');
 const fxPanelAction  = document.getElementById('fx-panel-action');
 const fxPanelControls = document.getElementById('fx-panel-controls');
+const fxPanelCompat = document.getElementById('fx-panel-compat');
+const fxResetBtn = document.getElementById('fx-reset-btn');
 const trackPrevBtn = document.getElementById('track-prev');
 const trackNextBtn = document.getElementById('track-next');
 
@@ -526,6 +528,73 @@ const FX_PRESETS = {
     },
 };
 
+/** Preset groups — coolest categories first; `clean` is reset-only, not listed here. */
+const FX_CATEGORIES = [
+    {
+        id: 'sound',
+        label: 'Sound',
+        presets: ['resonate', 'soundwave', 'beatstrike', 'spectra', 'pulse-clip'],
+    },
+    {
+        id: 'chaos',
+        label: 'Chaos',
+        presets: ['auto-ripple', 'corrupt', 'rend', 'hole', 'melt', 'ripple', 'shred'],
+    },
+    {
+        id: 'typo',
+        label: 'Typo',
+        presets: ['triglyph', 'braille', 'duotone', 'typewriter', 'font-morph', 'selection', 'neon', 'prism', 'decay'],
+    },
+    {
+        id: 'warp',
+        label: 'Warp',
+        presets: ['lens', 'swirl', 'fold', 'radar', 'orbit', 'rotwave', 'tilt3d'],
+    },
+    {
+        id: 'crt',
+        label: 'CRT',
+        presets: ['phosphor', 'interlace', 'broadcast', 'thermal'],
+    },
+    {
+        id: 'color',
+        label: 'Color',
+        presets: ['spectrum', 'punch', 'invert', 'aura', 'chrome', 'haze', 'plasma', 'bloom', 'screen', 'glass'],
+    },
+    {
+        id: 'pixel',
+        label: 'Pixel',
+        presets: ['edge', 'relief', 'crisp', 'retro', 'dots', 'echo', 'film', 'roll'],
+    },
+];
+
+const FX_COMPAT_LABEL = { ascii: 'A', pixel: 'P', both: '✦' };
+const FX_COMPAT_TITLE = {
+    ascii: 'ASCII mode only',
+    pixel: 'Pixel mode only',
+    both: 'Works in ASCII and Pixel',
+};
+
+function fxCompatKind(preset) {
+    if (preset.pixelOnly) return 'pixel';
+    if (preset.asciiOnly && !preset.pixelOk) return 'ascii';
+    return 'both';
+}
+
+function setCompatMark(el, kind) {
+    if (!el) return;
+    el.dataset.compat = kind;
+    el.textContent = FX_COMPAT_LABEL[kind];
+    el.title = FX_COMPAT_TITLE[kind];
+    el.hidden = false;
+}
+
+function hideCompatMark(el) {
+    if (!el) return;
+    el.hidden = true;
+    el.textContent = '';
+    delete el.dataset.compat;
+}
+
 // Populate fxParams defaults from FX_PRESETS controls definitions
 const fxParams = {};
 for (const preset of Object.values(FX_PRESETS)) {
@@ -707,14 +776,24 @@ function buildFxPanel(id) {
     if (id === 'font-morph') label = `${preset.label} · ${FONT_NAMES[fontMorphIndex]}`;
     if (fxPanelName) fxPanelName.textContent = label;
 
-    // Badge: ASCII-only warning when in pixel mode
+    if (id === 'clean') {
+        hideCompatMark(fxPanelCompat);
+    } else {
+        setCompatMark(fxPanelCompat, fxCompatKind(preset));
+    }
+
+    if (fxResetBtn) {
+        fxResetBtn.classList.toggle('active', id === 'clean');
+    }
+
+    // Mode mismatch note (only when selected preset can't run in current mode)
     if (fxPanelBadge) {
         const isAsciiOnly = pixelMode && preset.asciiOnly && !preset.pixelOk;
         const isPixelOnly = !pixelMode && preset.pixelOnly;
         fxPanelBadge.textContent = isAsciiOnly
-            ? 'ASCII only — switch to ASCII mode for full effect'
+            ? 'Switch to ASCII to use this'
             : isPixelOnly
-                ? 'PIXEL only — switch to PIXEL mode for full effect'
+                ? 'Switch to Pixel to use this'
                 : '';
         fxPanelBadge.hidden = !isAsciiOnly && !isPixelOnly;
     }
@@ -722,17 +801,17 @@ function buildFxPanel(id) {
     // Description — use fullDesc first, fall back to hint
     if (fxPanelDesc) {
         let body = preset.fullDesc || preset.hint || preset.tip || '';
-        if (pixelMode && preset.asciiOnly && !preset.pixelOk) {
-            body = 'This effect needs the ASCII character grid. Click the ASCII button above to switch modes.';
-        } else if (!pixelMode && preset.pixelOnly) {
-            body = 'This effect needs PIXEL mode. Click the PIXEL button above to switch modes.';
+        if (id !== 'clean' && pixelMode && preset.asciiOnly && !preset.pixelOk) {
+            body = 'This effect needs the ASCII character grid. Switch to ASCII mode on the player HUD.';
+        } else if (id !== 'clean' && !pixelMode && preset.pixelOnly) {
+            body = 'This effect needs Pixel mode. Switch to Pixel on the player HUD.';
         }
         fxPanelDesc.textContent = body;
     }
 
-    // Action hint
+    // Action hint — slot always reserved in layout
     if (fxPanelAction) {
-        const showAction = preset.action && (!pixelMode || preset.pixelOk);
+        const showAction = id !== 'clean' && preset.action && (!pixelMode || preset.pixelOk);
         fxPanelAction.textContent = showAction ? `→ ${preset.action}` : '';
         fxPanelAction.hidden = !showAction;
     }
@@ -831,16 +910,14 @@ function updateFxPickerUI() {
         const id = btn.dataset.fx;
         const preset = FX_PRESETS[id];
         const on = id === activeFx;
-        const asciiOnly = pixelMode && preset?.asciiOnly && !preset?.pixelOk;
-        const pixelOnly = !pixelMode && preset?.pixelOnly;
+        const needsAscii = pixelMode && preset?.asciiOnly && !preset?.pixelOk;
+        const needsPixel = !pixelMode && preset?.pixelOnly;
         btn.classList.toggle('active', on);
         btn.disabled = false;
-        btn.dataset.asciiOnly = asciiOnly ? 'true' : 'false';
-        btn.dataset.pixelOnly = pixelOnly ? 'true' : 'false';
-        if (asciiOnly) {
+        if (needsAscii) {
             btn.dataset.switchHint = 'Switches to ASCII';
-        } else if (pixelOnly) {
-            btn.dataset.switchHint = 'Switches to PIXEL';
+        } else if (needsPixel) {
+            btn.dataset.switchHint = 'Switches to Pixel';
         } else {
             delete btn.dataset.switchHint;
         }
@@ -852,58 +929,80 @@ function updateFxPickerUI() {
     buildFxPanel(activeFx);
     const hudLabel = document.getElementById('hud-look-label');
     if (hudLabel) {
-        hudLabel.textContent = FX_PRESETS[activeFx]?.label || 'CLEAN';
+        hudLabel.textContent = activeFx === 'clean' ? 'CLEAN' : (FX_PRESETS[activeFx]?.label || 'CLEAN');
     }
     if (activeChip) {
         activeChip.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 }
 
+function createFxChip(id, preset) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fx-chip';
+    btn.dataset.fx = id;
+    if (preset.interactive) btn.dataset.interactive = 'true';
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-describedby', 'fx-panel');
+
+    const compatEl = document.createElement('span');
+    compatEl.className = 'fx-chip-compat';
+    const kind = fxCompatKind(preset);
+    setCompatMark(compatEl, kind);
+    compatEl.setAttribute('aria-hidden', 'true');
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'fx-chip-name';
+    nameEl.textContent = preset.label;
+
+    const tipEl = document.createElement('span');
+    tipEl.className = 'fx-chip-tip';
+    tipEl.textContent = preset.tip;
+
+    btn.appendChild(compatEl);
+    btn.appendChild(nameEl);
+    btn.appendChild(tipEl);
+
+    btn.addEventListener('click', () => {
+        const isAsciiOnly = preset.asciiOnly && !preset.pixelOk;
+        const isPixelOnly = preset.pixelOnly;
+        if (pixelMode && isAsciiOnly) {
+            setPreferPixel(false, { reconnect: state === 'PLAYING' });
+            setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
+        } else if (!pixelMode && isPixelOnly) {
+            setPreferPixel(true, { reconnect: state === 'PLAYING' });
+            setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
+        } else {
+            applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' });
+        }
+    });
+    return btn;
+}
+
 function buildFxPicker() {
     if (!fxPicker) return;
     fxPicker.innerHTML = '';
-    for (const [id, preset] of Object.entries(FX_PRESETS)) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'fx-chip';
-        btn.dataset.fx = id;
-        if (preset.interactive) btn.dataset.interactive = 'true';
-        btn.setAttribute('role', 'option');
-        btn.setAttribute('aria-describedby', 'fx-panel');
+    for (const cat of FX_CATEGORIES) {
+        const section = document.createElement('div');
+        section.className = 'fx-category';
+        section.dataset.category = cat.id;
 
-        const nameEl = document.createElement('span');
-        nameEl.className = 'fx-chip-name';
-        nameEl.textContent = preset.label;
+        const label = document.createElement('div');
+        label.className = 'fx-category-label';
+        label.textContent = cat.label;
 
-        const tipEl = document.createElement('span');
-        tipEl.className = 'fx-chip-tip';
-        tipEl.textContent = preset.tip;
+        const grid = document.createElement('div');
+        grid.className = 'fx-category-grid';
 
-        const badgeEl = document.createElement('span');
-        badgeEl.className = 'fx-chip-badge';
-        badgeEl.textContent = preset.pixelOnly ? 'PIXEL' : 'ASCII';
-        badgeEl.title = preset.pixelOnly
-            ? 'PIXEL mode only — click to switch and apply'
-            : 'ASCII mode only — click to switch and apply';
+        for (const id of cat.presets) {
+            const preset = FX_PRESETS[id];
+            if (!preset) continue;
+            grid.appendChild(createFxChip(id, preset));
+        }
 
-        btn.appendChild(nameEl);
-        btn.appendChild(tipEl);
-        btn.appendChild(badgeEl);
-
-        btn.addEventListener('click', () => {
-            const isAsciiOnly = preset.asciiOnly && !preset.pixelOk;
-            const isPixelOnly = preset.pixelOnly;
-            if (pixelMode && isAsciiOnly) {
-                setPreferPixel(false, { reconnect: state === 'PLAYING' });
-                setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
-            } else if (!pixelMode && isPixelOnly) {
-                setPreferPixel(true, { reconnect: state === 'PLAYING' });
-                setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
-            } else {
-                applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' });
-            }
-        });
-        fxPicker.appendChild(btn);
+        section.appendChild(label);
+        section.appendChild(grid);
+        fxPicker.appendChild(section);
     }
     updateFxPickerUI();
 }
@@ -2850,9 +2949,14 @@ buildFxPicker();
 container.className = FX_PRESETS[activeFx]?.css || 'fx-clean';
 
 function fxGridCols() {
-    if (!fxPicker) return 3;
-    const cols = getComputedStyle(fxPicker).gridTemplateColumns;
+    const grid = fxPicker?.querySelector('.fx-category-grid');
+    if (!grid) return 3;
+    const cols = getComputedStyle(grid).gridTemplateColumns;
     return cols ? cols.split(' ').length : 3;
+}
+
+if (fxResetBtn) {
+    fxResetBtn.addEventListener('click', () => applyFx('clean'));
 }
 
 if (fxPicker) {

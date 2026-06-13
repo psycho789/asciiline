@@ -73,17 +73,30 @@
                 <div class="control-deck">
                     <div id="fx-panel" class="fx-panel" role="region" aria-label="Active effect">
                         <div class="fx-panel-head">
-                            <span class="fx-panel-name" id="fx-panel-name">CLEAN</span>
-                            <span class="fx-panel-badge" id="fx-panel-badge"></span>
+                            <button type="button" id="fx-reset-btn" class="fx-reset-btn"
+                                title="Reset — no effects" aria-label="Reset to clean">⟲</button>
+                            <div class="fx-panel-head-main">
+                                <span class="fx-panel-name" id="fx-panel-name">CLEAN</span>
+                                <span class="fx-panel-compat" id="fx-panel-compat" hidden></span>
+                            </div>
+                            <span class="fx-panel-badge" id="fx-panel-badge" hidden></span>
                         </div>
-                        <p class="fx-panel-desc" id="fx-panel-desc">The video renders exactly as-is — no modifications.</p>
-                        <p class="fx-panel-action" id="fx-panel-action" hidden></p>
-                        <div class="fx-panel-controls" id="fx-panel-controls"></div>
+                        <div class="fx-panel-body">
+                            <p class="fx-panel-desc" id="fx-panel-desc">The video renders exactly as-is — no modifications.</p>
+                            <p class="fx-panel-action" id="fx-panel-action" hidden></p>
+                            <div class="fx-panel-controls-slot">
+                                <div class="fx-panel-controls" id="fx-panel-controls"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="fx-grid-wrap">
-                        <div class="fx-grid-label">LOOK Presets</div>
-                        <div id="fx-picker" class="fx-grid" role="listbox" aria-label="Visual effects"
+                        <div class="fx-compat-legend" aria-hidden="true">
+                            <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="ascii">A</span> ASCII</span>
+                            <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="pixel">P</span> Pixel</span>
+                            <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="both">✦</span> Both</span>
+                        </div>
+                        <div id="fx-picker" role="listbox" aria-label="Visual effects"
                             aria-describedby="fx-panel"></div>
                     </div>
                 </div>

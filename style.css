@@ -16,7 +16,7 @@
     --muted: #8a8a96;
     --studio-header-h: 52px;
     --control-pane-w: min(460px, 44vw);
-    --canvas-max-w: 640px;
+    --fx-panel-h: 196px;
 }
 
 * {
@@ -124,7 +124,6 @@ body {
 
 .player-deck {
     width: 100%;
-    max-width: var(--canvas-max-w);
     height: 100%;
     display: flex;
     align-items: center;
@@ -545,26 +544,78 @@ body {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 8px 10px 12px;
+    padding: 6px 10px 12px;
     border-top: 1px solid var(--deck-border);
 }
 
-.fx-grid-label {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 1.4px;
-    color: #555;
-    text-transform: uppercase;
-    margin-bottom: 8px;
+.fx-compat-legend {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 0 2px;
 }
 
-.fx-grid {
+.fx-compat-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: #555;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.fx-compat-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    font-size: 8px;
+    font-weight: 800;
+    border-radius: 3px;
+    line-height: 1;
+}
+
+.fx-compat-mark[data-compat="ascii"] {
+    color: var(--accent-color);
+    border: 1px solid rgba(0, 243, 255, 0.5);
+    background: rgba(0, 243, 255, 0.08);
+}
+
+.fx-compat-mark[data-compat="pixel"] {
+    color: var(--accent-secondary);
+    border: 1px solid rgba(57, 255, 20, 0.45);
+    background: rgba(57, 255, 20, 0.08);
+}
+
+.fx-compat-mark[data-compat="both"] {
+    color: #c8c8d8;
+    border: 1px solid rgba(200, 200, 216, 0.35);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.fx-category {
+    margin-bottom: 12px;
+}
+
+.fx-category-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #666;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    padding-left: 2px;
+}
+
+.fx-category-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;
 }
 
-/* Compact preset chip — fixed height, no layout shift on hover */
+/* Compact preset chip — fixed height, stable compat badge */
 .fx-chip {
     position: relative;
     background: rgba(255, 255, 255, 0.02);
@@ -573,7 +624,7 @@ body {
     color: #9a9aa8;
     font-family: inherit;
     text-align: left;
-    padding: 7px 8px 6px;
+    padding: 7px 22px 6px 8px;
     cursor: pointer;
     transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
     height: 44px;
@@ -628,35 +679,42 @@ body {
     color: rgba(5, 5, 5, 0.65);
 }
 
-/* ASCII-only badge — shown in pixel mode */
-.fx-chip-badge {
+/* Static mode-compat mark — always visible, never changes with current mode */
+.fx-chip-compat {
     position: absolute;
-    top: 5px;
-    right: 6px;
+    top: 4px;
+    right: 4px;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: var(--accent-color);
-    opacity: 0;
-    transition: opacity 0.15s;
+    font-weight: 800;
+    border-radius: 3px;
+    line-height: 1;
     pointer-events: none;
 }
 
-.fx-chip[data-ascii-only="true"] .fx-chip-badge,
-.fx-chip[data-pixel-only="true"] .fx-chip-badge {
-    opacity: 1;
+.fx-chip-compat[data-compat="ascii"] {
+    color: var(--accent-color);
+    border: 1px solid rgba(0, 243, 255, 0.45);
+    background: rgba(0, 243, 255, 0.1);
 }
 
-.fx-chip[data-ascii-only="true"],
-.fx-chip[data-pixel-only="true"] {
-    border-style: dashed;
-}
-
-.fx-chip[data-pixel-only="true"] .fx-chip-badge {
+.fx-chip-compat[data-compat="pixel"] {
     color: var(--accent-secondary);
+    border: 1px solid rgba(57, 255, 20, 0.4);
+    background: rgba(57, 255, 20, 0.1);
 }
 
-/* Floating tooltip — does not affect chip layout */
+.fx-chip-compat[data-compat="both"] {
+    color: #b8b8c8;
+    border: 1px solid rgba(184, 184, 200, 0.35);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Wrong-mode click hint — floating, no layout shift */
 .fx-chip[data-switch-hint]::before {
     content: attr(data-switch-hint);
     position: absolute;
@@ -682,16 +740,6 @@ body {
     transform: translateX(-50%) translateY(0);
 }
 
-.fx-chip[data-ascii-only="true"]:hover {
-    border-color: var(--accent-color);
-    color: var(--accent-color);
-}
-
-.fx-chip[data-pixel-only="true"]:hover {
-    border-color: var(--accent-secondary);
-    color: var(--accent-secondary);
-}
-
 /* Animated active dot for interactive presets */
 .fx-chip[data-interactive="true"].active .fx-chip-name::after {
     content: ' ●';
@@ -715,21 +763,77 @@ body {
     50% { box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.3); }
 }
 
-/* ── FX PANEL ────────────────────────── */
+/* ── FX PANEL — fixed height, no content jump ── */
 .fx-panel {
     flex-shrink: 0;
+    height: var(--fx-panel-h);
     background: rgba(255, 255, 255, 0.03);
     border-bottom: 1px solid var(--deck-border);
-    padding: 12px 14px 14px;
-    min-height: 56px;
-    transition: border-color 0.2s;
+    padding: 10px 12px 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .fx-panel-head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 6px;
+    flex-shrink: 0;
+}
+
+.fx-reset-btn {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #3a3a44;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #888;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.fx-reset-btn:hover {
+    color: var(--accent-color);
+    border-color: rgba(0, 243, 255, 0.45);
+    background: rgba(0, 243, 255, 0.06);
+}
+
+.fx-reset-btn.active {
+    color: var(--accent-secondary);
+    border-color: rgba(57, 255, 20, 0.5);
+    background: rgba(57, 255, 20, 0.1);
+}
+
+.fx-reset-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.fx-panel-head-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.fx-panel-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.fx-panel-controls-slot {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    margin-top: 4px;
 }
 
 .fx-panel-name {
@@ -750,23 +854,67 @@ body {
 
 .fx-panel-badge[hidden] { display: none; }
 
+.fx-panel-compat {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 800;
+    border-radius: 3px;
+}
+
+.fx-panel-compat[data-compat="ascii"] {
+    color: var(--accent-color);
+    border: 1px solid rgba(0, 243, 255, 0.45);
+}
+
+.fx-panel-compat[data-compat="pixel"] {
+    color: var(--accent-secondary);
+    border: 1px solid rgba(57, 255, 20, 0.4);
+}
+
+.fx-panel-compat[data-compat="both"] {
+    color: #b8b8c8;
+    border: 1px solid rgba(184, 184, 200, 0.35);
+}
+
+.fx-panel-compat[hidden] { display: none; }
+
 .fx-panel-desc {
     font-size: 11px;
     color: #8888a8;
     line-height: 1.45;
-    margin: 0 0 6px;
+    margin: 0;
     font-weight: 300;
+    height: 2.9em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    flex-shrink: 0;
 }
 
 .fx-panel-action {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--accent-color);
     font-weight: 500;
-    margin: 0 0 10px;
+    margin: 4px 0 0;
     opacity: 0.9;
+    height: 1.35em;
+    line-height: 1.35;
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
-.fx-panel-action[hidden] { display: none; }
+.fx-panel-action[hidden] {
+    visibility: hidden;
+    display: block;
+}
 
 /* Sliders */
 .fx-ctrl-row {
@@ -1004,10 +1152,10 @@ body {
 @media (max-width: 900px) {
     :root {
         --control-pane-w: min(400px, 48vw);
-        --canvas-max-w: 100%;
+        --fx-panel-h: 188px;
     }
 
-    .fx-grid {
+    .fx-category-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
@@ -1043,7 +1191,7 @@ body {
     }
 
     .player-deck {
-        max-width: 100%;
+        max-width: none;
     }
 
     #player-container {
@@ -1060,7 +1208,7 @@ body {
         min-height: 50vh;
     }
 
-    .fx-grid {
+    .fx-category-grid {
         grid-template-columns: repeat(3, 1fr);
     }
 
@@ -1071,7 +1219,7 @@ body {
 }
 
 @media (max-width: 420px) {
-    .fx-grid {
+    .fx-category-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
