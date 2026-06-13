@@ -826,6 +826,7 @@ function updateAudioLevelBar() {
 
 function updateFxPickerUI() {
     if (!fxPicker) return;
+    let activeChip = null;
     fxPicker.querySelectorAll('.fx-chip').forEach((btn) => {
         const id = btn.dataset.fx;
         const preset = FX_PRESETS[id];
@@ -839,8 +840,12 @@ function updateFxPickerUI() {
         btn.setAttribute('aria-selected', String(on));
         btn.setAttribute('aria-pressed', String(on));
         btn.tabIndex = on ? 0 : -1;
+        if (on) activeChip = btn;
     });
     buildFxPanel(activeFx);
+    if (activeChip) {
+        activeChip.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
 }
 
 function buildFxPicker() {
@@ -2837,6 +2842,7 @@ if (fxPicker) {
     fxPicker.addEventListener('keydown', (e) => {
         const chips = [...fxPicker.querySelectorAll('.fx-chip')];
         const idx = chips.findIndex((c) => c.dataset.fx === activeFx);
+        const cols = 2;
         if (e.key === 'ArrowRight' && idx < chips.length - 1) {
             e.preventDefault();
             chips[idx + 1].focus();
@@ -2845,7 +2851,37 @@ if (fxPicker) {
             e.preventDefault();
             chips[idx - 1].focus();
             applyFx(chips[idx - 1].dataset.fx);
+        } else if (e.key === 'ArrowDown' && idx + cols < chips.length) {
+            e.preventDefault();
+            chips[idx + cols].focus();
+            applyFx(chips[idx + cols].dataset.fx);
+        } else if (e.key === 'ArrowUp' && idx - cols >= 0) {
+            e.preventDefault();
+            chips[idx - cols].focus();
+            applyFx(chips[idx - cols].dataset.fx);
         }
+    });
+}
+
+const aboutToggle = document.getElementById('about-toggle');
+const aboutPanel = document.getElementById('about-panel');
+const aboutClose = document.getElementById('about-close');
+
+function setAboutOpen(open) {
+    if (!aboutPanel || !aboutToggle) return;
+    aboutPanel.hidden = !open;
+    aboutToggle.setAttribute('aria-expanded', String(open));
+}
+
+if (aboutToggle && aboutPanel) {
+    aboutToggle.addEventListener('click', () => setAboutOpen(aboutPanel.hidden));
+}
+if (aboutClose) {
+    aboutClose.addEventListener('click', () => setAboutOpen(false));
+}
+if (aboutPanel) {
+    aboutPanel.addEventListener('click', (e) => {
+        if (e.target === aboutPanel) setAboutOpen(false);
     });
 }
 
@@ -2873,14 +2909,3 @@ const playerObserver = new IntersectionObserver((entries) => {
     }
 }, { threshold: [0, 0.4] });
 playerObserver.observe(container);
-
-function applyParallax() {
-    const rect = container.getBoundingClientRect();
-    const viewH = window.innerHeight;
-    const progress = 1 - (rect.top + rect.height) / (viewH + rect.height);
-    const offset = (progress - 0.5) * 30;
-    if (effectiveFx() !== 'tilt3d') {
-        container.style.transform = `translateY(${offset.toFixed(1)}px)`;
-    }
-}
-window.addEventListener('scroll', applyParallax, { passive: true });

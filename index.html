@@ -11,24 +11,18 @@
 </head>
 
 <body>
-    <header class="blog-header">
-        <h1>ASCILINE</h1>
-        <p>Turning the web into a living, breathing typographic canvas.</p>
+    <header class="studio-header">
+        <div class="studio-header-brand">
+            <h1>ASCILINE</h1>
+            <span class="studio-header-tag">Typography Engine</span>
+        </div>
+        <button type="button" id="about-toggle" class="studio-about-btn" aria-expanded="false"
+            aria-controls="about-panel">About</button>
     </header>
 
-    <main class="blog-container">
-        <article class="blog-post">
-            <h2 class="post-title">The Web Was Never Meant to Be Static</h2>
-            <div class="post-meta">Manifesto // May 4, 2026 // ASCILINE Core Team</div>
-
-            <p class="post-content">
-                Every character on this page is potential energy. The web was built on text — HTML,
-                the very skeleton of every site you visit, is nothing but structured characters. Yet
-                somewhere along the way, we forgot that text itself can be the medium, not just the
-                message. ASCILINE exists to remind us: every glyph is a pixel waiting to move.
-            </p>
-
-            <div class="video-wrapper">
+    <main class="studio-shell">
+        <div class="studio-layout">
+            <section class="studio-canvas-pane" aria-label="Video player">
                 <div class="player-deck">
                     <div id="player-container" class="fx-clean">
                         <pre id="ascii-player" aria-hidden="true"></pre>
@@ -42,67 +36,77 @@
                             <span class="play-hint">Click to decode video as live text</span>
                         </div>
                     </div>
+                </div>
+                <video id="ascii-video" playsinline preload="metadata" hidden></video>
+            </section>
 
-                    <div class="control-deck">
-
-                        <!-- Single compact bar: mode + track + vol + status + copy -->
-                        <div class="ctrl-bar">
-                            <div class="mode-toggle" role="group" aria-label="Render mode">
-                                <button type="button" id="mode-ascii" class="mode-btn active" aria-pressed="true"
-                                    title="Character grid">ASCII</button>
-                                <button type="button" id="mode-pixel" class="mode-btn" aria-pressed="false"
-                                    title="Colored blocks, higher fidelity">PIXEL</button>
-                            </div>
-
-                            <div class="ctrl-bar-track" id="ctrl-bar-track">
-                                <button type="button" id="track-prev" class="track-nav-btn" title="Previous">&#8592;</button>
-                                <span id="track-label" class="track-label"></span>
-                                <button type="button" id="track-next" class="track-nav-btn" title="Next">&#8594;</button>
-                            </div>
-
-                            <div class="ctrl-bar-vol">
-                                <label class="ctrl-bar-label" for="volume-slider">VOL</label>
-                                <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1"
-                                    aria-label="Volume">
-                            </div>
-
-                            <button type="button" id="copy-frame-btn" class="ctrl-bar-btn" disabled
-                                title="Copy ASCII frame to clipboard">Copy</button>
-
-                            <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+            <aside class="studio-control-pane" aria-label="Player controls">
+                <div class="control-deck">
+                    <div class="ctrl-bar">
+                        <div class="mode-toggle" role="group" aria-label="Render mode">
+                            <button type="button" id="mode-ascii" class="mode-btn active" aria-pressed="true"
+                                title="Character grid">ASCII</button>
+                            <button type="button" id="mode-pixel" class="mode-btn" aria-pressed="false"
+                                title="Colored blocks, higher fidelity">PIXEL</button>
                         </div>
 
-                        <!-- Active effect panel: name, description, action hint, controls -->
-                        <div id="fx-panel" class="fx-panel" role="region" aria-label="Effect controls">
-                            <div class="fx-panel-head">
-                                <span class="fx-panel-name" id="fx-panel-name">CLEAN</span>
-                                <span class="fx-panel-badge" id="fx-panel-badge"></span>
-                            </div>
-                            <p class="fx-panel-desc" id="fx-panel-desc">The video renders exactly as-is — no modifications.</p>
-                            <p class="fx-panel-action" id="fx-panel-action" hidden></p>
-                            <div class="fx-panel-controls" id="fx-panel-controls"></div>
+                        <div class="ctrl-bar-track" id="ctrl-bar-track">
+                            <button type="button" id="track-prev" class="track-nav-btn" title="Previous">&#8592;</button>
+                            <span id="track-label" class="track-label"></span>
+                            <button type="button" id="track-next" class="track-nav-btn" title="Next">&#8594;</button>
                         </div>
 
-                        <!-- FX grid — wraps naturally, no scroll, all always visible -->
-                        <div class="fx-grid-wrap">
-                            <div id="fx-picker" class="fx-grid" role="listbox" aria-label="Visual effects"
-                                aria-describedby="fx-panel"></div>
+                        <div class="ctrl-bar-vol">
+                            <label class="ctrl-bar-label" for="volume-slider">VOL</label>
+                            <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1"
+                                aria-label="Volume">
                         </div>
 
+                        <button type="button" id="copy-frame-btn" class="ctrl-bar-btn" disabled
+                            title="Copy ASCII frame to clipboard">Copy</button>
+
+                        <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+                    </div>
+
+                    <div id="fx-panel" class="fx-panel" role="region" aria-label="Effect controls">
+                        <div class="fx-panel-head">
+                            <span class="fx-panel-name" id="fx-panel-name">CLEAN</span>
+                            <span class="fx-panel-badge" id="fx-panel-badge"></span>
+                        </div>
+                        <p class="fx-panel-desc" id="fx-panel-desc">The video renders exactly as-is — no modifications.</p>
+                        <p class="fx-panel-action" id="fx-panel-action" hidden></p>
+                        <div class="fx-panel-controls" id="fx-panel-controls"></div>
+                    </div>
+
+                    <div class="fx-grid-wrap">
+                        <div class="fx-grid-label">LOOK Presets</div>
+                        <div id="fx-picker" class="fx-grid" role="listbox" aria-label="Visual effects"
+                            aria-describedby="fx-panel"></div>
                     </div>
                 </div>
+            </aside>
+        </div>
+    </main>
 
-                <video id="ascii-video" playsinline preload="metadata" hidden></video>
-            </div>
-
-            <p class="post-content">
+    <div id="about-panel" class="about-panel" hidden>
+        <div class="about-panel-inner">
+            <h2>The Web Was Never Meant to Be Static</h2>
+            <p class="about-meta">Manifesto // May 4, 2026 // ASCILINE Core Team</p>
+            <p>
+                Every character on this page is potential energy. The web was built on text — HTML,
+                the very skeleton of every site you visit, is nothing but structured characters. Yet
+                somewhere along the way, we forgot that text itself can be the medium, not just the
+                message. ASCILINE exists to remind us: every glyph is a pixel waiting to move.
+            </p>
+            <p>
                 This build runs entirely in your browser — no server, no WebSocket. A hidden video
                 decodes each frame locally; JavaScript maps pixels to characters or colored blocks on
                 a canvas. Cycle the LOOK presets to see typography become the medium — RGB glyph
                 split, braille density, teletype reveal, buffer corruption, and more.
             </p>
-        </article>
-    </main>
+            <button type="button" id="about-close" class="studio-about-btn">Close</button>
+        </div>
+    </div>
 
     <script src="app.js"></script>
     <svg id="svg-filters" xmlns="http://www.w3.org/2000/svg"
