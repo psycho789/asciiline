@@ -38,6 +38,17 @@ const studioRenderControls = document.getElementById('studio-render-controls');
 const catFilterEl = document.getElementById('fx-cat-filter');
 const volLabel = document.getElementById('vol-label');
 
+const {
+    buildGlyphAtlas,
+    buildRotationAtlas,
+    compositeColorAsciiFrame,
+    compositeTriglyphFrame,
+    compositeRotatedAsciiFrame,
+} = window.AsciilineGlyphAtlas;
+
+const textDecoder = new TextDecoder();
+const RESONATE_TRIGLYPH_THRESHOLD = 0.25;
+
 const PALETTE =
     " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
 const PALETTE_LEN = PALETTE.length;
@@ -748,6 +759,8 @@ function pausePlayback() {
     video.pause();
     state = 'PAUSED';
     lastMediaTime = -1;
+    lastFpsMediaSample = -1;
+    cancelFrameLoop();
     updateTransportUI();
 }
 
@@ -861,11 +874,27 @@ let charHeight = 0;
 let xPos = null;
 let yPos = null;
 let selectionBuffer = null;
+let selectionRowStride = 0;
+
+let glyphAtlas = null;
+let rotationAtlas = null;
+let colorFrameImageData = null;
+let cellViewBuffer = null;
+let cellAngleBuffer = null;
+let useRenderWorker =
+    typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined';
+let renderWorker = null;
+let workerBusy = false;
+let workerPendingFrame = null;
+let workerBusySince = 0;
 
 let frameCount = 0;
 let lastFpsUpdate = 0;
 let lastMediaTime = -1;
-let usingRvfc = false;
+let lastRenderTs = 0;
+let lastFpsMediaSample = -1;
+let videoFrameRate = 24;
+let rafHandle = 0;
 let frameParity = 0;
 
 let trailCanvas = null;
@@ -2088,23 +2117,28 @@ function pickCharFromGray(gray) {
     return PALETTE.charCodeAt(paletteIndex(gray));
 }
 
-function pickFillColor(r, g, b, gray) {
+function pickFillRgb(r, g, b, gray) {
     const fx = effectiveFx();
     if (fx === 'thermal') {
         const idx = paletteIndex(gray);
         const t = idx / (PALETTE_LEN - 1);
         const ci = Math.min(THERMAL_COLORS.length - 1, Math.floor(t * THERMAL_COLORS.length));
-        return THERMAL_COLORS[ci];
+        return hexToRgb(THERMAL_COLORS[ci]);
     }
     if (fx === 'broadcast') {
         const idx = paletteIndex(gray);
-        if (idx > PALETTE_LEN * 0.65) return '#39ff14';
+        if (idx > PALETTE_LEN * 0.65) return { r: 57, g: 255, b: 20 };
         const t = idx / (PALETTE_LEN - 1);
         const ci = Math.min(THERMAL_COLORS.length - 1, Math.floor(t * THERMAL_COLORS.length));
-        return THERMAL_COLORS[ci];
+        return hexToRgb(THERMAL_COLORS[ci]);
     }
     if (fx === 'duotone') {
-        return gray > 128 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},0.25)`;
+        if (gray > 128) return { r, g, b };
+        return {
+            r: Math.round(r * 0.25),
+            g: Math.round(g * 0.25),
+            b: Math.round(b * 0.25),
+        };
     }
     const qb = QB_MAP[renderMode] || 0;
     let rr = r;
@@ -2114,6 +2148,56 @@ function pickFillColor(r, g, b, gray) {
         rr = (rr >> qb) << qb;
         gg = (gg >> qb) << qb;
         bb = (bb >> qb) << qb;
+    }
+    return { r: rr, g: gg, b: bb };
+}
+
+function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function prismColorRgb(row, now) {
+    const t = now * 0.0003;
+    const gradY0 = canvas.height * (-0.3 + Math.sin(t) * 0.4);
+    const gradY1 = canvas.height * (1.3 + Math.cos(t * 0.7) * 0.4);
+    const py = yPos[row] + charHeight * 0.5;
+    const span = gradY1 - gradY0;
+    const frac = span === 0 ? 0 : Math.max(0, Math.min(1, (py - gradY0) / span));
+    const stops = [
+        { f: 0, rgb: [255, 0, 64] },
+        { f: 0.2, rgb: [255, 140, 0] },
+        { f: 0.45, rgb: [0, 243, 255] },
+        { f: 0.7, rgb: [57, 255, 20] },
+        { f: 1, rgb: [196, 0, 255] },
+    ];
+    for (let i = 0; i < stops.length - 1; i++) {
+        const a = stops[i];
+        const b = stops[i + 1];
+        if (frac >= a.f && frac <= b.f) {
+            const t2 = (frac - a.f) / (b.f - a.f);
+            return {
+                r: Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t2),
+                g: Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t2),
+                b: Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t2),
+            };
+        }
+    }
+    const last = stops[stops.length - 1].rgb;
+    return { r: last[0], g: last[1], b: last[2] };
+}
+
+function cellColorBytes(cell, row, _col, now) {
+    if (effectiveFx() === 'prism') return prismColorRgb(row, now);
+    const fx = effectiveFx();
+    if (fx === 'hole' || fx === 'rend') return { r: cell.r, g: cell.g, b: cell.b };
+    return pickFillRgb(cell.r, cell.g, cell.b, cell.gray);
+}
+
+function pickFillColor(r, g, b, gray) {
+    const { r: rr, g: gg, b: bb } = pickFillRgb(r, g, b, gray);
+    if (effectiveFx() === 'duotone' && gray <= 128) {
+        return `rgba(${r},${g},${b},0.25)`;
     }
     return `rgb(${rr},${gg},${bb})`;
 }
@@ -2477,7 +2561,7 @@ function renderPixelRoll() {
 function renderPixel(now) {
     const fx = effectiveFx();
 
-    if (fx === 'triglyph' || (fx === 'resonate' && audioEnergy > 0.2)) {
+    if (fx === 'triglyph' || (fx === 'resonate' && audioEnergy > RESONATE_TRIGLYPH_THRESHOLD)) {
         renderPixelTriglyph();
     } else if (fx === 'thermal') {
         renderPixelThermal();
@@ -2605,6 +2689,322 @@ function paletteIndex(gray) {
     return Math.min(PALETTE_LEN - 1, Math.floor(gray / (256 / PALETTE_LEN)));
 }
 
+function buildAtlasGlyphList() {
+    const seen = new Set();
+    const out = [];
+    const add = (ch) => {
+        if (!ch || seen.has(ch)) return;
+        seen.add(ch);
+        out.push(ch);
+    };
+    add(' ');
+    for (const ch of PALETTE) add(ch);
+    for (const ch of BRAILLE_LUT) add(ch);
+    add(String.fromCharCode(BLOCK_CHAR));
+    add(String.fromCharCode(DOT_CHAR));
+    for (const ch of CORRUPT_CHARS) add(ch);
+    for (const ch of WAVE_CHARS) add(ch);
+    for (const set of AUTO_RIPPLE_CHAR_SETS) {
+        for (const ch of set) add(ch);
+    }
+    return out;
+}
+
+function usesTriglyphPath(fx, now) {
+    void now;
+    return fx === 'triglyph'
+        || (fx === 'resonate' && audioEnergy > RESONATE_TRIGLYPH_THRESHOLD);
+}
+
+function usesRotatedAsciiPath(fx) {
+    return fx === 'rotwave' || fx === 'orbit';
+}
+
+function atlasPayload(atlas) {
+    const payload = {
+        pixels: atlas.pixels,
+        width: atlas.width,
+        height: atlas.height,
+        cellW: atlas.cellW,
+        cellH: atlas.cellH,
+        atlasCols: atlas.atlasCols,
+        glyphCount: atlas.glyphCount,
+        charCodeToAtlasIndex: atlas.charCodeToAtlasIndex,
+    };
+    if (atlas.binW != null) {
+        payload.binW = atlas.binW;
+        payload.binH = atlas.binH;
+        payload.rotationBins = atlas.rotationBins;
+    }
+    return payload;
+}
+
+function rebuildGlyphAtlas() {
+    const font = getActiveFont();
+    const glyphs = buildAtlasGlyphList();
+    glyphAtlas = buildGlyphAtlas(charWidth, charHeight, font.css, glyphs);
+    rotationAtlas = buildRotationAtlas(charWidth, charHeight, font.css, glyphs);
+    colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    const cellCount = gridCols * gridRows;
+    cellViewBuffer = new Uint8Array(cellCount * 4);
+    cellAngleBuffer = new Float32Array(cellCount);
+    syncWorkerInit();
+}
+
+function syncSelectionTransform() {
+    if (pixelMode || !canvas.width || !canvas.height) return;
+    const containerW = container.clientWidth;
+    const containerH = container.clientHeight;
+    const fitScaleX = containerW / canvas.width;
+    const fitScaleY = containerH / canvas.height;
+    const fitScale = Math.min(fitScaleX, fitScaleY);
+    const renderedW = canvas.width * fitScale;
+    const renderedH = canvas.height * fitScale;
+    const offsetX = (containerW - renderedW) / 2;
+    const offsetY = (containerH - renderedH) / 2;
+    player.style.transformOrigin = 'top left';
+    player.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${fitScale})`;
+}
+
+function updateSelectionLayer() {
+    player.style.display = 'block';
+    player.style.color = 'transparent';
+    player.textContent = textDecoder.decode(selectionBuffer);
+    lastFrameText = player.textContent;
+}
+
+function initRenderWorker() {
+    if (!useRenderWorker || pixelMode || renderMode === 1) return;
+    if (renderWorker) {
+        renderWorker.terminate();
+        renderWorker = null;
+        workerBusy = false;
+        workerPendingFrame = null;
+    }
+    try {
+        renderWorker = new Worker('client/render_worker.js');
+    } catch {
+        useRenderWorker = false;
+        renderWorker = null;
+        return;
+    }
+    renderWorker.onmessage = (event) => {
+        if (event.data.type !== 'frame') return;
+        applyWorkerFrame(event.data);
+        workerBusy = false;
+        if (workerPendingFrame) {
+            const pending = workerPendingFrame;
+            workerPendingFrame = null;
+            postFrameToWorker(pending.view, pending.mode, pending.angles);
+        }
+    };
+    renderWorker.onerror = () => {
+        renderWorker.terminate();
+        renderWorker = null;
+        useRenderWorker = false;
+        workerBusy = false;
+        if (workerPendingFrame) {
+            const pending = workerPendingFrame;
+            workerPendingFrame = null;
+            dispatchAsciiFrame(pending.view, pending.mode);
+        }
+    };
+    syncWorkerInit();
+}
+
+function syncWorkerInit() {
+    if (!renderWorker || !glyphAtlas) return;
+    renderWorker.postMessage({
+        type: 'init',
+        atlas: atlasPayload(glyphAtlas),
+        rotationAtlas: rotationAtlas ? atlasPayload(rotationAtlas) : null,
+        width: canvas.width,
+        height: canvas.height,
+        xPos,
+        yPos,
+    });
+}
+
+function applyWorkerFrame(payload) {
+    const { imageData, selectionBuffer: workerSelection, width, height } = payload;
+    const pixels = new Uint8ClampedArray(imageData);
+    ctx.putImageData(new ImageData(pixels, width, height), 0, 0);
+    selectionBuffer.set(new Uint8Array(workerSelection));
+    updateSelectionLayer();
+}
+
+function postFrameToWorker(view, mode, angles) {
+    if (!renderWorker || !glyphAtlas) {
+        dispatchAsciiFrame(view, mode);
+        return;
+    }
+    if (workerBusy) {
+        workerPendingFrame = { view, mode, angles };
+        return;
+    }
+    workerBusy = true;
+    workerBusySince = performance.now();
+    const viewCopy = new Uint8Array(view);
+    const msg = {
+        type: 'frame',
+        view: viewCopy,
+        mode,
+        gridCols,
+        gridRows,
+        width: canvas.width,
+        height: canvas.height,
+        charWidth,
+        charHeight,
+        selectionRowStride,
+        triglyphOffset,
+    };
+    if (mode === 'rotated' && angles) {
+        msg.angles = angles instanceof Float32Array ? angles.slice() : angles;
+    }
+    renderWorker.postMessage(msg, [viewCopy.buffer]);
+}
+
+function renderColorAsciiFrame(view) {
+    if (
+        !colorFrameImageData
+        || colorFrameImageData.width !== canvas.width
+        || colorFrameImageData.height !== canvas.height
+    ) {
+        colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    }
+    compositeColorAsciiFrame({
+        view,
+        gridCols,
+        gridRows,
+        width: canvas.width,
+        height: canvas.height,
+        charWidth,
+        charHeight,
+        atlas: glyphAtlas,
+        destData: colorFrameImageData.data,
+        selectionBuffer,
+        selectionRowStride,
+        xPos,
+        yPos,
+    });
+    ctx.putImageData(colorFrameImageData, 0, 0);
+    updateSelectionLayer();
+}
+
+function renderTriglyphFrame(view) {
+    if (
+        !colorFrameImageData
+        || colorFrameImageData.width !== canvas.width
+        || colorFrameImageData.height !== canvas.height
+    ) {
+        colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    }
+    compositeTriglyphFrame({
+        view,
+        gridCols,
+        gridRows,
+        width: canvas.width,
+        height: canvas.height,
+        charWidth,
+        charHeight,
+        atlas: glyphAtlas,
+        destData: colorFrameImageData.data,
+        selectionBuffer,
+        selectionRowStride,
+        xPos,
+        yPos,
+        offset: triglyphOffset,
+    });
+    ctx.putImageData(colorFrameImageData, 0, 0);
+    updateSelectionLayer();
+}
+
+function renderRotatedAsciiFrame(view) {
+    if (
+        !colorFrameImageData
+        || colorFrameImageData.width !== canvas.width
+        || colorFrameImageData.height !== canvas.height
+    ) {
+        colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    }
+    compositeRotatedAsciiFrame({
+        view,
+        angles: cellAngleBuffer,
+        gridCols,
+        gridRows,
+        width: canvas.width,
+        height: canvas.height,
+        charWidth,
+        charHeight,
+        rotationAtlas,
+        destData: colorFrameImageData.data,
+        selectionBuffer,
+        selectionRowStride,
+        xPos,
+        yPos,
+    });
+    ctx.putImageData(colorFrameImageData, 0, 0);
+    updateSelectionLayer();
+}
+
+function dispatchAsciiFrame(view, mode) {
+    if (mode === 'triglyph') renderTriglyphFrame(view);
+    else if (mode === 'rotated') renderRotatedAsciiFrame(view);
+    else renderColorAsciiFrame(view);
+}
+
+function buildCellView(data, now, withAngles = false) {
+    const cellCount = gridCols * gridRows;
+    if (!cellViewBuffer || cellViewBuffer.length !== cellCount * 4) {
+        cellViewBuffer = new Uint8Array(cellCount * 4);
+    }
+    if (withAngles && (!cellAngleBuffer || cellAngleBuffer.length !== cellCount)) {
+        cellAngleBuffer = new Float32Array(cellCount);
+    }
+    let idx = 0;
+    let cellIdx = 0;
+    for (let row = 0; row < gridRows; row++) {
+        for (let col = 0; col < gridCols; col++) {
+            const cell = resolveCell(data, row, col, now);
+            const { r, g, b } = cellColorBytes(cell, row, col, now);
+            cellViewBuffer[idx++] = cell.charCode < 256 ? cell.charCode : 32;
+            cellViewBuffer[idx++] = r;
+            cellViewBuffer[idx++] = g;
+            cellViewBuffer[idx++] = b;
+            if (withAngles) {
+                cellAngleBuffer[cellIdx] = computeCharAngle(col, row, now);
+            }
+            cellIdx++;
+        }
+    }
+    return cellViewBuffer;
+}
+
+function queueAsciiFrame(view, mode) {
+    if (useRenderWorker && renderWorker) {
+        const angles = mode === 'rotated' ? cellAngleBuffer : null;
+        postFrameToWorker(view, mode, angles);
+    } else {
+        dispatchAsciiFrame(view, mode);
+    }
+}
+
+function checkWorkerStall(now) {
+    if (!useRenderWorker || !workerBusy) return;
+    if (now - workerBusySince <= 500) return;
+    useRenderWorker = false;
+    workerBusy = false;
+    if (renderWorker) {
+        renderWorker.terminate();
+        renderWorker = null;
+    }
+    if (workerPendingFrame) {
+        const pending = workerPendingFrame;
+        workerPendingFrame = null;
+        dispatchAsciiFrame(pending.view, pending.mode);
+    }
+}
+
 // ── CANVAS SETUP ──────────────────────────────────────────
 
 function buildCanvas(cols, rows) {
@@ -2633,6 +3033,8 @@ function buildCanvas(cols, rows) {
         canvas.style.imageRendering = 'pixelated';
         syncSize(canvas);
         player.style.display = 'none';
+        glyphAtlas = null;
+        rotationAtlas = null;
         ensurePixelTrail();
     } else {
         canvas.style.imageRendering = '';
@@ -2644,31 +3046,21 @@ function buildCanvas(cols, rows) {
         canvas.height = rows * charHeight;
         canvas.style.display = 'block';
 
-        selectionBuffer = new Uint8Array((cols + 1) * rows);
-        for (let r = 0; r < rows; r++) selectionBuffer[r * (cols + 1) + cols] = 10;
+        selectionRowStride = cols + 1;
+        selectionBuffer = new Uint8Array(selectionRowStride * rows);
+        for (let r = 0; r < rows; r++) selectionBuffer[r * selectionRowStride + cols] = 10;
 
         syncSize(canvas);
 
-        const containerW = container.clientWidth;
-        const containerH = container.clientHeight;
-        const fitScaleX = containerW / canvas.width;
-        const fitScaleY = containerH / canvas.height;
-        const fitScale = Math.min(fitScaleX, fitScaleY);
-        const renderedW = canvas.width * fitScale;
-        const renderedH = canvas.height * fitScale;
-        const offsetX = (containerW - renderedW) / 2;
-        const offsetY = (containerH - renderedH) / 2;
-
-        player.style.width = canvas.width + 'px';
-        player.style.height = canvas.height + 'px';
+        player.style.width = `${canvas.width}px`;
+        player.style.height = `${canvas.height}px`;
         player.style.position = 'absolute';
         player.style.top = '0';
         player.style.left = '0';
-        player.style.transformOrigin = 'top left';
         player.style.fontFamily = font.family;
         player.style.fontSize = `${font.size}px`;
         player.style.lineHeight = `${font.size}px`;
-        player.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${fitScale})`;
+        syncSelectionTransform();
 
         ctx.font = font.css;
         ctx.textBaseline = 'top';
@@ -2683,6 +3075,14 @@ function buildCanvas(cols, rows) {
         trailCtx = trailCanvas.getContext('2d');
         trailCtx.fillStyle = '#050505';
         trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
+
+        if (renderMode !== 1) {
+            rebuildGlyphAtlas();
+            initRenderWorker();
+        } else {
+            glyphAtlas = null;
+            rotationAtlas = null;
+        }
 
         resetFxState();
     }
@@ -2750,49 +3150,43 @@ function statusLabel() {
 function updateFpsStatus(now) {
     frameCount++;
     if (now - lastFpsUpdate < 1000) return;
-    const target = TARGET_FPS;
-    statusEl.textContent = `FPS: ${frameCount}/${target} | ${statusLabel()}`;
+    refreshVideoFrameRateEstimate();
+    const cap = Math.min(MAX_RENDER_FPS, videoFrameRate);
+    statusEl.textContent = `FPS: ${frameCount}/${cap} | ${statusLabel()}`;
     frameCount = 0;
     lastFpsUpdate = now;
+}
+
+function refreshVideoFrameRateEstimate() {
+    if (typeof video.getVideoPlaybackQuality !== 'function') return;
+    if (video.currentTime < 0.25) return;
+    const q = video.getVideoPlaybackQuality();
+    if (q.totalVideoFrames < 3) return;
+    const measured = q.totalVideoFrames / video.currentTime;
+    if (measured < 10 || measured > 120) return;
+    videoFrameRate = Math.min(MAX_RENDER_FPS, Math.round(measured));
+}
+
+function noteFrameRateFromMediaTime(mediaTime) {
+    if (lastFpsMediaSample < 0) {
+        lastFpsMediaSample = mediaTime;
+        return;
+    }
+    const dt = mediaTime - lastFpsMediaSample;
+    lastFpsMediaSample = mediaTime;
+    if (dt <= 0.0005 || dt > 0.5) return;
+    const instant = 1 / dt;
+    if (instant < 10 || instant > 120) return;
+    const rounded = Math.min(MAX_RENDER_FPS, Math.round(instant));
+    videoFrameRate = videoFrameRate
+        ? Math.round(videoFrameRate * 0.85 + rounded * 0.15)
+        : rounded;
 }
 
 // ── RENDER PATHS ──────────────────────────────────────────
 
 function renderTriglyph(data, now) {
-    ctx.fillStyle = '#050505';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = getActiveFont().css;
-    ctx.textBaseline = 'top';
-    ctx.globalCompositeOperation = 'lighter';
-
-    const off = triglyphOffset;
-    const layers = [
-        { dx: -off, color: '#ff0040' },
-        { dx: 0, color: '#00ff88' },
-        { dx: off, color: '#0088ff' },
-    ];
-    const lines = new Array(gridRows);
-    for (let r = 0; r < gridRows; r++) lines[r] = '';
-
-    for (const layer of layers) {
-        ctx.fillStyle = layer.color;
-        for (let row = 0; row < gridRows; row++) {
-            for (let col = 0; col < gridCols; col++) {
-                const { charCode } = resolveCell(data, row, col, now);
-                ctx.fillText(charStr(charCode), xPos[col] + layer.dx, yPos[row]);
-                if (layer.dx === 0) {
-                    lines[row] += charStr(charCode);
-                    if (charCode < 256) selectionBuffer[row * (gridCols + 1) + col] = charCode;
-                }
-            }
-        }
-    }
-
-    ctx.globalCompositeOperation = 'source-over';
-    player.style.display = 'block';
-    player.style.color = 'transparent';
-    player.textContent = lines.join('\n');
-    lastFrameText = player.textContent;
+    queueAsciiFrame(buildCellView(data, now), 'triglyph');
 }
 
 function computeCharAngle(col, row, now) {
@@ -2812,88 +3206,13 @@ function computeCharAngle(col, row, now) {
 }
 
 function renderColorAscii(data, now) {
-    const fx = effectiveFx();
-
-    if (fx === 'triglyph' || (fx === 'resonate' && audioEnergy > 0.25)) {
-        renderTriglyph(data, now);
-        return;
+    if (usesTriglyphPath(effectiveFx(), now)) {
+        queueAsciiFrame(buildCellView(data, now), 'triglyph');
+    } else if (usesRotatedAsciiPath(effectiveFx())) {
+        queueAsciiFrame(buildCellView(data, now, true), 'rotated');
+    } else {
+        queueAsciiFrame(buildCellView(data, now), 'color');
     }
-
-    if (fx === 'prism') {
-        ctx.fillStyle = '#050505';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.font = getActiveFont().css;
-        ctx.textBaseline = 'top';
-        const t = now * 0.0003;
-        const gradY0 = canvas.height * (-0.3 + Math.sin(t) * 0.4);
-        const gradY1 = canvas.height * (1.3 + Math.cos(t * 0.7) * 0.4);
-        const grad = ctx.createLinearGradient(0, gradY0, 0, gradY1);
-        grad.addColorStop(0, '#ff0040');
-        grad.addColorStop(0.2, '#ff8c00');
-        grad.addColorStop(0.45, '#00f3ff');
-        grad.addColorStop(0.7, '#39ff14');
-        grad.addColorStop(1, '#c400ff');
-        ctx.fillStyle = grad;
-        const lines = new Array(gridRows);
-        for (let r = 0; r < gridRows; r++) {
-            let line = '';
-            for (let c = 0; c < gridCols; c++) {
-                const { charCode } = resolveCell(data, r, c, now);
-                ctx.fillText(charStr(charCode), xPos[c], yPos[r]);
-                line += charStr(charCode);
-            }
-            lines[r] = line;
-        }
-        player.style.display = 'block';
-        player.style.color = 'transparent';
-        player.textContent = lines.join('\n');
-        lastFrameText = player.textContent;
-        return;
-    }
-
-    ctx.fillStyle = '#050505';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = getActiveFont().css;
-    ctx.textBaseline = 'top';
-
-    const usePerCharTransform = (fx === 'rotwave' || fx === 'orbit');
-    let prevFill = '';
-    const lines = new Array(gridRows);
-    for (let r = 0; r < gridRows; r++) lines[r] = '';
-
-    for (let row = 0; row < gridRows; row++) {
-        for (let col = 0; col < gridCols; col++) {
-            const { charCode, r, g, b, gray } = resolveCell(data, row, col, now);
-            const fill = pickFillColor(r, g, b, gray);
-            if (fill !== prevFill) {
-                ctx.fillStyle = fill;
-                prevFill = fill;
-            }
-            if (usePerCharTransform) {
-                const angle = computeCharAngle(col, row, now);
-                if (Math.abs(angle) > 0.008) {
-                    const cx = xPos[col] + charWidth * 0.5;
-                    const cy = yPos[row] + charHeight * 0.5;
-                    ctx.save();
-                    ctx.translate(cx, cy);
-                    ctx.rotate(angle);
-                    ctx.fillText(charStr(charCode), -charWidth * 0.5, -charHeight * 0.5);
-                    ctx.restore();
-                } else {
-                    ctx.fillText(charStr(charCode), xPos[col], yPos[row]);
-                }
-            } else {
-                ctx.fillText(charStr(charCode), xPos[col], yPos[row]);
-            }
-            lines[row] += charStr(charCode);
-            if (charCode < 256) selectionBuffer[row * (gridCols + 1) + col] = charCode;
-        }
-    }
-
-    player.style.display = 'block';
-    player.style.color = 'transparent';
-    player.textContent = lines.join('\n');
-    lastFrameText = player.textContent;
 }
 
 function renderBwAscii(data, now) {
@@ -3234,8 +3553,19 @@ function processFrame(now) {
     } else {
         offCtx.drawImage(video, 0, 0, gridCols, gridRows);
         const { data } = offCtx.getImageData(0, 0, gridCols, gridRows);
-        if (renderMode === 1) renderBwAscii(data, now);
-        else renderColorAscii(data, now);
+        if (renderMode === 1) {
+            renderBwAscii(data, now);
+        } else {
+            checkWorkerStall(now);
+            const fx = effectiveFx();
+            if (usesTriglyphPath(fx, now)) {
+                queueAsciiFrame(buildCellView(data, now), 'triglyph');
+            } else if (usesRotatedAsciiPath(fx)) {
+                queueAsciiFrame(buildCellView(data, now, true), 'rotated');
+            } else {
+                queueAsciiFrame(buildCellView(data, now), 'color');
+            }
+        }
         applyPostFx();
     }
 
@@ -3251,43 +3581,85 @@ function processFrame(now) {
 
 // ── FRAME LOOP ────────────────────────────────────────────
 
-const TARGET_FPS = 60;
+/** Hard ceiling — never render faster than this; source fps may be lower. */
+const MAX_RENDER_FPS = 60;
+
+function minRenderIntervalMs() {
+    return 1000 / MAX_RENDER_FPS;
+}
 
 function onVideoFrame(now, metadata) {
     if (state !== 'PLAYING') return;
-    if (metadata && metadata.mediaTime === lastMediaTime) {
-        scheduleFrame();
+
+    const mediaTime = metadata?.mediaTime ?? video.currentTime;
+    if (mediaTime === lastMediaTime) {
+        scheduleVideoFrame();
         return;
     }
-    if (metadata) lastMediaTime = metadata.mediaTime;
+
+    if (metadata?.mediaTime != null) {
+        noteFrameRateFromMediaTime(metadata.mediaTime);
+    }
+
+    if (now - lastRenderTs < minRenderIntervalMs()) {
+        scheduleVideoFrame();
+        return;
+    }
+
+    lastMediaTime = mediaTime;
+    lastRenderTs = now;
     processFrame(now);
-    scheduleFrame();
+    scheduleVideoFrame();
 }
 
 function onRafFrame(now) {
     if (state !== 'PLAYING') return;
+    rafHandle = requestAnimationFrame(onRafFrame);
+
+    const mediaTime = video.currentTime;
+    if (mediaTime === lastMediaTime) return;
+    if (now - lastRenderTs < minRenderIntervalMs()) return;
+
+    lastMediaTime = mediaTime;
+    lastRenderTs = now;
+    noteFrameRateFromMediaTime(mediaTime);
     processFrame(now);
-    requestAnimationFrame(onRafFrame);
 }
 
-function scheduleFrame() {
+function scheduleVideoFrame() {
     if (state !== 'PLAYING') return;
-    if (usingRvfc && typeof video.requestVideoFrameCallback === 'function') {
+    if (typeof video.requestVideoFrameCallback === 'function') {
         video.requestVideoFrameCallback(onVideoFrame);
+    }
+}
+
+function cancelFrameLoop() {
+    if (rafHandle) {
+        cancelAnimationFrame(rafHandle);
+        rafHandle = 0;
     }
 }
 
 function startFrameLoop() {
     lastMediaTime = -1;
+    lastFpsMediaSample = -1;
+    lastRenderTs = 0;
     frameCount = 0;
     lastFpsUpdate = performance.now();
-    usingRvfc = false;
-    requestAnimationFrame(onRafFrame);
+    cancelFrameLoop();
+
+    if (typeof video.requestVideoFrameCallback === 'function') {
+        scheduleVideoFrame();
+    } else {
+        rafHandle = requestAnimationFrame(onRafFrame);
+    }
 }
 
 function stopFrameLoop() {
+    cancelFrameLoop();
     state = 'IDLE';
     lastMediaTime = -1;
+    lastFpsMediaSample = -1;
 }
 
 // ── PLAYBACK ──────────────────────────────────────────────
@@ -3355,6 +3727,12 @@ async function startStream() {
 
 function finishStream() {
     stopFrameLoop();
+    if (renderWorker) {
+        renderWorker.terminate();
+        renderWorker = null;
+    }
+    workerBusy = false;
+    workerPendingFrame = null;
     video.pause();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     player.textContent = '';
@@ -3619,9 +3997,14 @@ video.addEventListener('ended', async () => {
 window.addEventListener('resize', () => {
     updateWaveformVis();
     layoutPlayerContainer();
-    if (gridCols > 0 && gridRows > 0) {
-        buildCanvas(gridCols, gridRows);
-        updateGridColsBarLabel(gridCols, gridRows);
+    syncSelectionTransform();
+    if (gridCols > 0 && gridRows > 0 && !pixelMode && renderMode !== 1) {
+        if (glyphAtlas) {
+            updateGridColsBarLabel(gridCols, gridRows);
+        } else {
+            buildCanvas(gridCols, gridRows);
+            updateGridColsBarLabel(gridCols, gridRows);
+        }
     }
 });
 
