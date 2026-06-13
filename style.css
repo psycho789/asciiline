@@ -346,7 +346,7 @@ body {
     font-size: 10px;
     font-weight: 700;
     line-height: 1;
-    cursor: help;
+    cursor: pointer;
 }
 
 .ctrl-help-btn:hover,
@@ -359,18 +359,18 @@ body {
 .ctrl-help-popover {
     display: none;
     position: fixed;
-    z-index: 300;
+    z-index: 400;
     width: min(260px, calc(100vw - 24px));
     padding: 8px 10px;
-    border: 1px solid rgba(0, 243, 255, 0.25);
+    border: 1px solid rgba(0, 243, 255, 0.35);
     border-radius: 6px;
-    background: rgba(6, 6, 10, 0.98);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    background: rgba(6, 6, 10, 0.99);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
     font-size: 11px;
     line-height: 1.45;
-    color: #aaa;
+    color: #bbb;
     text-align: left;
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 .ctrl-help-popover.ctrl-help-popover-visible {

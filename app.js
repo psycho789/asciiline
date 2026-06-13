@@ -1080,35 +1080,77 @@ function createHelpButton(helpKey) {
     return wrap;
 }
 
-function hideHelpPopover(wrap) {
-    const pop = wrap.querySelector('.ctrl-help-popover');
+function hideHelpPop(pop) {
     if (!pop) return;
     pop.classList.remove('ctrl-help-popover-visible');
+    pop.style.top = '';
+    pop.style.left = '';
+    pop.style.width = '';
+    const home = pop.dataset.helpHome;
+    if (home) {
+        const wrap = document.querySelector(`[data-help-id="${home}"]`);
+        if (wrap && pop.parentElement === document.body) {
+            wrap.appendChild(pop);
+        }
+    }
+    const btnId = pop.dataset.helpBtn;
+    if (btnId) {
+        const btn = document.getElementById(btnId);
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
 }
 
 function hideAllHelpPopovers() {
-    document.querySelectorAll('.ctrl-help-popover-visible').forEach((pop) => {
-        pop.classList.remove('ctrl-help-popover-visible');
+    document.querySelectorAll('.ctrl-help-popover.ctrl-help-popover-visible').forEach((pop) => {
+        hideHelpPop(pop);
     });
 }
 
-function positionHelpPopover(btn, pop) {
-    const margin = 10;
-    pop.classList.add('ctrl-help-popover-visible');
+function findHelpPop(wrap) {
+    const local = wrap.querySelector('.ctrl-help-popover');
+    if (local) return local;
+    const id = wrap.dataset.helpId;
+    if (!id) return null;
+    return document.querySelector(`.ctrl-help-popover[data-help-home="${id}"]`);
+}
 
-    const popW = pop.offsetWidth;
+function showHelpForWrap(wrap) {
+    const btn = wrap.querySelector('.ctrl-help-btn');
+    const pop = findHelpPop(wrap);
+    if (!btn || !pop) return;
+
+    hideAllHelpPopovers();
+
+    if (!wrap.dataset.helpId) {
+        wrap.dataset.helpId = `help-${Math.random().toString(36).slice(2, 9)}`;
+    }
+    if (!btn.id) {
+        btn.id = `help-btn-${wrap.dataset.helpId}`;
+    }
+    pop.dataset.helpHome = wrap.dataset.helpId;
+    pop.dataset.helpBtn = btn.id;
+
+    document.body.appendChild(pop);
+    pop.classList.add('ctrl-help-popover-visible');
+    btn.setAttribute('aria-expanded', 'true');
+
+    const margin = 10;
+    const width = Math.min(260, window.innerWidth - 24);
+    pop.style.width = `${width}px`;
+    pop.style.display = 'block';
+
     const popH = pop.offsetHeight;
     const br = btn.getBoundingClientRect();
 
     let top = br.bottom + margin;
-    let left = br.left + br.width / 2 - popW / 2;
+    let left = br.left + br.width / 2 - width / 2;
 
     if (top + popH > window.innerHeight - margin) {
         top = br.top - popH - margin;
     }
     if (left < margin) left = margin;
-    if (left + popW > window.innerWidth - margin) {
-        left = window.innerWidth - popW - margin;
+    if (left + width > window.innerWidth - margin) {
+        left = window.innerWidth - width - margin;
     }
     if (top < margin) top = margin;
 
@@ -1124,17 +1166,26 @@ function wireHelpTooltips(root = document) {
             const pop = wrap.querySelector('.ctrl-help-popover');
             if (!btn || !pop || btn.dataset.helpWired === '1') return;
             btn.dataset.helpWired = '1';
+            btn.setAttribute('aria-expanded', 'false');
 
-            const show = () => {
-                hideAllHelpPopovers();
-                positionHelpPopover(btn, pop);
-            };
-            const hide = () => hideHelpPopover(wrap);
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const popEl = findHelpPop(wrap);
+                const isOpen = popEl?.classList.contains('ctrl-help-popover-visible');
+                if (isOpen) {
+                    hideAllHelpPopovers();
+                } else {
+                    showHelpForWrap(wrap);
+                }
+            });
 
-            btn.addEventListener('mouseenter', show);
-            btn.addEventListener('focus', show);
-            wrap.addEventListener('mouseleave', hide);
-            btn.addEventListener('blur', hide);
+            btn.addEventListener('mouseenter', () => {
+                showHelpForWrap(wrap);
+            });
+            btn.addEventListener('focus', () => {
+                showHelpForWrap(wrap);
+            });
         });
     }
 }
@@ -1209,8 +1260,10 @@ function wirePlayerSettings() {
         playerSettingsPopover.addEventListener('scroll', hideAllHelpPopovers, { passive: true });
     }
     document.addEventListener('click', (e) => {
-        if (!playerSettingsOpen) return;
         const t = e.target;
+        if (t.closest?.('.ctrl-help-btn') || t.closest?.('.ctrl-help-popover')) return;
+        hideAllHelpPopovers();
+        if (!playerSettingsOpen) return;
         if (playerSettingsPopover?.contains(t)) return;
         if (playerSettingsBtn?.contains(t) || playerSettingsFab?.contains(t)) return;
         setPlayerSettingsOpen(false);
