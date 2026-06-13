@@ -30,75 +30,102 @@
                 <div class="player-stage">
                     <div class="player-deck">
                         <div id="player-container" class="fx-clean">
-                        <pre id="ascii-player" aria-hidden="true"></pre>
-                        <canvas id="ascii-canvas" aria-hidden="true"></canvas>
-                        <div id="fx-overlay" aria-hidden="true"></div>
-                        <div id="typewriter-cursor" aria-hidden="true"></div>
+                            <pre id="ascii-player" aria-hidden="true"></pre>
+                            <canvas id="ascii-canvas" aria-hidden="true"></canvas>
+                            <div id="fx-overlay" aria-hidden="true"></div>
+                            <div id="typewriter-cursor" aria-hidden="true"></div>
 
-                        <div id="play-overlay">
-                            <div class="play-btn" aria-hidden="true"></div>
-                            <span class="play-label">Initialize Uplink</span>
-                            <span class="play-hint">Click to decode video as live text</span>
-                        </div>
+                            <div id="play-overlay">
+                                <div class="play-btn" aria-hidden="true"></div>
+                                <span class="play-label">Initialize Uplink</span>
+                                <span class="play-hint">Click to decode video as live text</span>
+                            </div>
 
-                        <div class="player-hud" id="player-hud">
-                            <span id="hud-look-label" class="hud-look-label">CLEAN</span>
-                            <div class="ctrl-bar player-hud-bar">
-                                <div class="hud-transport-row">
-                                    <button type="button" id="transport-play" class="transport-play-btn"
-                                        title="Play / Pause" aria-label="Play or pause">&#9654;</button>
-                                    <div class="hud-seek-wrap">
-                                        <input id="seek-slider" type="range" min="0" max="1000" value="0"
-                                            disabled aria-label="Seek">
-                                    </div>
-                                    <span class="hud-time" id="hud-time">
-                                        <span id="time-current">0:00</span>
-                                        <span class="hud-time-sep">/</span>
-                                        <span id="time-duration">0:00</span>
-                                    </span>
-                                    <button type="button" id="fullscreen-btn" class="ctrl-bar-btn hud-fs-btn"
-                                        title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
+                            <button type="button" id="player-settings-fab" class="player-settings-fab"
+                                title="Quality &amp; audio settings" aria-label="Open quality and audio settings"
+                                aria-expanded="false" aria-controls="player-settings-popover">&#9881;</button>
+
+                            <div id="player-settings-popover" class="player-settings-popover" hidden
+                                role="dialog" aria-label="Render and audio settings">
+                                <div class="player-settings-head">
+                                    <span class="player-settings-title">Quality &amp; Reactivity</span>
+                                    <button type="button" id="player-settings-close" class="player-settings-close"
+                                        aria-label="Close settings">&#10005;</button>
                                 </div>
-                                <div class="hud-meta-row">
-                                    <div class="ctrl-bar-track" id="ctrl-bar-track">
-                                        <button type="button" id="track-prev" class="track-nav-btn" title="Previous">&#8592;</button>
-                                        <span id="track-label" class="track-label"></span>
-                                        <button type="button" id="track-next" class="track-nav-btn" title="Next">&#8594;</button>
+                                <p class="player-settings-lead">These tune sharpness, frame shape, and how sound drives effects — not the LOOK presets in the sidebar.</p>
+
+                                <section class="player-settings-section" aria-labelledby="settings-grid-heading">
+                                    <div class="player-settings-section-head">
+                                        <h3 id="settings-grid-heading" class="player-settings-section-title">Grid detail</h3>
+                                        <div class="ctrl-help-wrap" data-help-key="grid-cols"></div>
                                     </div>
+                                    <div class="studio-render-controls" id="studio-render-controls"></div>
+                                </section>
 
-                                    <div class="ctrl-bar-vol">
-                                        <label class="ctrl-bar-label" id="vol-label" for="volume-slider">VOL</label>
-                                        <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1"
-                                            aria-label="Volume">
+                                <section class="player-settings-section" aria-labelledby="settings-aspect-heading">
+                                    <div class="player-settings-section-head">
+                                        <h3 id="settings-aspect-heading" class="player-settings-section-title">Aspect ratio</h3>
+                                        <div class="ctrl-help-wrap" data-help-key="aspect"></div>
                                     </div>
+                                    <select id="aspect-select" class="player-aspect-select" aria-label="Output aspect ratio">
+                                        <option value="auto">Auto — match source</option>
+                                        <option value="16:9">16:9 — widescreen</option>
+                                        <option value="4:3">4:3 — classic TV</option>
+                                        <option value="21:9">21:9 — ultrawide</option>
+                                        <option value="1:1">1:1 — square</option>
+                                    </select>
+                                </section>
 
-                                    <button type="button" id="copy-frame-btn" class="ctrl-bar-btn" disabled
-                                        title="Copy ASCII frame to clipboard">Copy</button>
+                                <section class="player-settings-section" aria-labelledby="settings-audio-heading">
+                                    <div class="player-settings-section-head">
+                                        <h3 id="settings-audio-heading" class="player-settings-section-title">Audio reactivity</h3>
+                                        <div class="ctrl-help-wrap" data-help-key="audio-reactive"></div>
+                                    </div>
+                                    <div class="studio-audio-controls" id="studio-audio-controls"></div>
+                                </section>
+                            </div>
 
-                                    <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+                            <div class="player-hud" id="player-hud">
+                                <span id="hud-look-label" class="hud-look-label">CLEAN</span>
+                                <div class="ctrl-bar player-hud-bar">
+                                    <div class="hud-transport-row">
+                                        <button type="button" id="transport-play" class="transport-play-btn"
+                                            title="Play / Pause" aria-label="Play or pause">&#9654;</button>
+                                        <div class="hud-seek-wrap">
+                                            <input id="seek-slider" type="range" min="0" max="1000" value="0"
+                                                disabled aria-label="Seek">
+                                        </div>
+                                        <span class="hud-time" id="hud-time">
+                                            <span id="time-current">0:00</span>
+                                            <span class="hud-time-sep">/</span>
+                                            <span id="time-duration">0:00</span>
+                                        </span>
+                                        <button type="button" id="player-settings-btn" class="ctrl-bar-btn player-settings-btn"
+                                            title="Quality &amp; audio settings" aria-label="Open quality and audio settings"
+                                            aria-expanded="false" aria-controls="player-settings-popover">&#9881;</button>
+                                        <button type="button" id="fullscreen-btn" class="ctrl-bar-btn hud-fs-btn"
+                                            title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
+                                    </div>
+                                    <div class="hud-meta-row">
+                                        <div class="ctrl-bar-track" id="ctrl-bar-track">
+                                            <button type="button" id="track-prev" class="track-nav-btn" title="Previous">&#8592;</button>
+                                            <span id="track-label" class="track-label"></span>
+                                            <button type="button" id="track-next" class="track-nav-btn" title="Next">&#8594;</button>
+                                        </div>
+
+                                        <div class="ctrl-bar-vol">
+                                            <label class="ctrl-bar-label" id="vol-label" for="volume-slider">VOL</label>
+                                            <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1"
+                                                aria-label="Volume">
+                                        </div>
+
+                                        <button type="button" id="copy-frame-btn" class="ctrl-bar-btn" disabled
+                                            title="Copy ASCII frame to clipboard">Copy</button>
+
+                                        <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                    <div class="player-tuning-bar" id="player-tuning-bar" aria-label="Grid and audio tuning">
-                        <div class="player-tuning-group player-tuning-grid">
-                            <span class="player-tuning-label">Grid</span>
-                            <div class="studio-render-controls" id="studio-render-controls"></div>
-                        </div>
-                        <div class="player-tuning-group player-tuning-aspect">
-                            <label class="player-tuning-label" for="aspect-select">Asp</label>
-                            <select id="aspect-select" class="player-aspect-select" aria-label="Output aspect ratio">
-                                <option value="auto">Auto</option>
-                                <option value="16:9">16:9</option>
-                                <option value="4:3">4:3</option>
-                                <option value="21:9">21:9</option>
-                                <option value="1:1">1:1</option>
-                            </select>
-                        </div>
-                        <div class="player-tuning-group player-tuning-audio">
-                            <div class="studio-audio-controls" id="studio-audio-controls"></div>
                         </div>
                     </div>
                 </div>
@@ -187,7 +214,7 @@
     </div>
 
     <script src="client/glyph_atlas.js"></script>
-    <script src="app.js?v=20260612j"></script>
+    <script src="app.js?v=20260612k"></script>
     <svg id="svg-filters" xmlns="http://www.w3.org/2000/svg"
          style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
         <defs>

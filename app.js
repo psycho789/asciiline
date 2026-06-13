@@ -36,6 +36,10 @@ const demoToggleBtn = document.getElementById('demo-toggle');
 const studioAudioControls = document.getElementById('studio-audio-controls');
 const studioRenderControls = document.getElementById('studio-render-controls');
 const aspectSelect = document.getElementById('aspect-select');
+const playerSettingsBtn = document.getElementById('player-settings-btn');
+const playerSettingsFab = document.getElementById('player-settings-fab');
+const playerSettingsPopover = document.getElementById('player-settings-popover');
+const playerSettingsClose = document.getElementById('player-settings-close');
 const catFilterEl = document.getElementById('fx-cat-filter');
 const volLabel = document.getElementById('vol-label');
 
@@ -147,12 +151,66 @@ const BRAILLE_LUT = (() => {
     return dots.map((d) => String.fromCharCode(0x2800 + d));
 })();
 
-/** Global audio tuning — always visible in the control pane. */
+/** Global audio tuning — in player settings popover (gear icon). */
 const GLOBAL_AUDIO_CONTROLS = [
-    { id: 'audio-bass-eq', label: 'Bass', min: -12, max: 12, step: 1, def: 4, unit: 'dB' },
-    { id: 'audio-treble-eq', label: 'Treble', min: -12, max: 12, step: 1, def: 0, unit: 'dB' },
-    { id: 'audio-kick-sens', label: 'Kick', min: 0.0, max: 1.0, step: 0.05, def: 0.82 },
+    {
+        id: 'audio-bass-eq',
+        label: 'Bass',
+        min: -12,
+        max: 12,
+        step: 1,
+        def: 4,
+        unit: 'dB',
+        helpKey: 'bass',
+    },
+    {
+        id: 'audio-treble-eq',
+        label: 'Treble',
+        min: -12,
+        max: 12,
+        step: 1,
+        def: 0,
+        unit: 'dB',
+        helpKey: 'treble',
+    },
+    {
+        id: 'audio-kick-sens',
+        label: 'Kick',
+        min: 0.0,
+        max: 1.0,
+        step: 0.05,
+        def: 0.82,
+        helpKey: 'kick',
+    },
 ];
+
+/** Quality-focused help copy for render/audio tuning controls. */
+const TUNING_HELP = {
+    'grid-cols': {
+        title: 'Grid columns',
+        body: 'How many character columns span the frame. More columns means each glyph samples fewer source pixels, so fine detail (faces, text, edges) stays sharper. The tradeoff is work per frame — if FPS or throughput in the status line drops, lower this first.',
+    },
+    aspect: {
+        title: 'Aspect ratio',
+        body: 'Sets the width-to-height shape of the ASCII grid. Auto follows the source video so proportions stay correct. A fixed preset (16:9, 4:3, etc.) forces that shape — useful for cinematic bars or square crops, but the wrong preset can make the image look stretched even at high column counts.',
+    },
+    'audio-reactive': {
+        title: 'Audio reactivity',
+        body: 'These sliders shape the signal that drives sound-reactive LOOK presets (Beatfire, Spectra, Pulse, etc.). They do not change decode fidelity — they change how hard bass, treble, and drum hits push the visuals.',
+    },
+    bass: {
+        title: 'Bass EQ',
+        body: 'Boosts or cuts low frequencies before they hit reactive effects. Higher bass makes kick-driven pulses and ripples hit harder; too much can make effects feel muddy and constantly triggered.',
+    },
+    treble: {
+        title: 'Treble EQ',
+        body: 'Boosts or cuts high frequencies for shimmer, spectra bars, and waveform detail. Raising treble adds sparkle on hi-hats and cymbals; lowering it calms busy, flickery motion.',
+    },
+    kick: {
+        title: 'Kick sensitivity',
+        body: 'How strongly sharp drum transients register as beat hits. Higher values flash and glitch more on kicks — great for club tracks, overwhelming on acoustic or speech-heavy video.',
+    },
+};
 
 /** WAVEFORM “bass bump” profile — quick centered hit, no lingering shake. */
 const SOUNDWAVE_BUMP_IDS = [
@@ -998,6 +1056,83 @@ function buildGlobalAudioBar() {
     });
 }
 
+function createHelpButton(helpKey) {
+    const info = TUNING_HELP[helpKey];
+    if (!info) return null;
+
+    const wrap = document.createElement('span');
+    wrap.className = 'ctrl-help-wrap';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ctrl-help-btn';
+    btn.setAttribute('aria-label', `Help: ${info.title}`);
+    btn.textContent = '?';
+
+    const pop = document.createElement('span');
+    pop.className = 'ctrl-help-popover';
+    pop.setAttribute('role', 'tooltip');
+    pop.innerHTML = `<strong>${info.title}</strong><span>${info.body}</span>`;
+
+    wrap.appendChild(btn);
+    wrap.appendChild(pop);
+    return wrap;
+}
+
+function mountTuningHelpButtons() {
+    document.querySelectorAll('.ctrl-help-wrap[data-help-key]').forEach((slot) => {
+        const key = slot.getAttribute('data-help-key');
+        const help = createHelpButton(key);
+        if (help) {
+            slot.replaceWith(help);
+        }
+    });
+}
+
+let playerSettingsOpen = false;
+
+function setPlayerSettingsOpen(open) {
+    playerSettingsOpen = open;
+    if (playerSettingsPopover) playerSettingsPopover.hidden = !open;
+    for (const btn of [playerSettingsBtn, playerSettingsFab]) {
+        if (!btn) continue;
+        btn.setAttribute('aria-expanded', String(open));
+        btn.classList.toggle('active', open);
+    }
+    if (container) {
+        container.classList.toggle('player-settings-open', open);
+    }
+}
+
+function togglePlayerSettings() {
+    setPlayerSettingsOpen(!playerSettingsOpen);
+}
+
+function wirePlayerSettings() {
+    for (const btn of [playerSettingsBtn, playerSettingsFab]) {
+        if (!btn) continue;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePlayerSettings();
+        });
+    }
+    if (playerSettingsClose) {
+        playerSettingsClose.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setPlayerSettingsOpen(false);
+        });
+    }
+    if (playerSettingsPopover) {
+        playerSettingsPopover.addEventListener('click', (e) => e.stopPropagation());
+    }
+    document.addEventListener('click', () => {
+        if (playerSettingsOpen) setPlayerSettingsOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && playerSettingsOpen) setPlayerSettingsOpen(false);
+    });
+}
+
 function syncAspectSelect() {
     if (aspectSelect) aspectSelect.value = aspectPreset;
 }
@@ -1092,7 +1227,7 @@ function buildGridColsBar() {
 
     const lbl = document.createElement('label');
     lbl.className = 'fx-ctrl-label';
-    lbl.textContent = 'Cols';
+    lbl.textContent = 'Detail';
     lbl.setAttribute('for', 'grid-cols-slider');
 
     const slider = document.createElement('input');
@@ -1211,6 +1346,14 @@ function appendFxControlRow(ctrl, container, { compact = false } = {}) {
     lbl.textContent = ctrl.label;
     lbl.setAttribute('for', `fx-ctrl-${ctrl.id}`);
 
+    const labelWrap = document.createElement('div');
+    labelWrap.className = 'fx-ctrl-label-wrap';
+    labelWrap.appendChild(lbl);
+    if (ctrl.helpKey) {
+        const help = createHelpButton(ctrl.helpKey);
+        if (help) labelWrap.appendChild(help);
+    }
+
     const slider = document.createElement('input');
     slider.type = 'range';
     slider.id = `fx-ctrl-${ctrl.id}`;
@@ -1237,7 +1380,7 @@ function appendFxControlRow(ctrl, container, { compact = false } = {}) {
         }
     });
 
-    row.appendChild(lbl);
+    row.appendChild(labelWrap);
     row.appendChild(slider);
     row.appendChild(valDisplay);
     container.appendChild(row);
@@ -4104,6 +4247,8 @@ video.addEventListener('loadedmetadata', () => {
 buildFxPicker();
 buildGridColsBar();
 buildGlobalAudioBar();
+mountTuningHelpButtons();
+wirePlayerSettings();
 syncAspectSelect();
 if (aspectSelect) {
     aspectSelect.addEventListener('change', () => setAspectPreset(aspectSelect.value));
