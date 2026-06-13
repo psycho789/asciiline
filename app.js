@@ -103,9 +103,7 @@ const FONT_STACK = [
 
 const THERMAL_COLORS = ['#001133', '#003366', '#00f3ff', '#39ff14', '#ffaa00', '#ff0040'];
 
-/** Matches ascii_video_player2.py CHAR_RATIO — chars read taller than square pixels. */
-const CHAR_CELL_RATIO = 0.45;
-/** Default ASCII grid width — same ballpark as `stream_server.py --cols 320`. */
+/** Default ASCII grid width — same as `stream_server.py --cols 320`. */
 const DEFAULT_ASCII_COLS = 320;
 const DEFAULT_PIXEL_COLS = 520;
 
@@ -2442,9 +2440,10 @@ function currentRenderPrefs() {
 
 function calcAutoRows(cols, vidW, vidH, isPixel) {
     if (!vidW || !vidH) return Math.max(1, Math.round(cols * 9 / 16));
-    const videoAspect = vidH / vidW;
-    if (isPixel) return Math.max(1, Math.round(cols * videoAspect));
-    return Math.max(1, Math.round(cols * videoAspect * CHAR_CELL_RATIO));
+    const ratio = vidW / Math.max(vidH, 1);
+    if (isPixel) return Math.max(1, Math.round(cols / ratio));
+    // Match use_cases/video_geometry.py — ASCII chars ~2× taller than wide.
+    return Math.max(1, Math.round(cols / ratio / 2));
 }
 
 function fitBoxAspect(boxW, boxH, contentAspectWOverH) {
