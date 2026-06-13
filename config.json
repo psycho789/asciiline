@@ -1,9 +1,9 @@
 {
   "playlist": [
-    { "src": "videos/blow-the-whistle.mp4", "ascii": { "mode": 3, "cols": 220 }, "pixel": { "mode": 5, "cols": 400 } },
-    { "src": "videos/jubeilunch.mp4", "ascii": { "mode": 3, "cols": 220 }, "pixel": { "mode": 5, "cols": 400 } },
-    { "src": "videos/jubeilunch_extended.mp4", "ascii": { "mode": 3, "cols": 220 }, "pixel": { "mode": 5, "cols": 400 } },
-    { "src": "videos/fg.mp4", "ascii": { "mode": 3, "cols": 220 }, "pixel": { "mode": 5, "cols": 400 } }
+    { "src": "videos/blow-the-whistle.mp4", "ascii": { "mode": 3, "cols": 320 }, "pixel": { "mode": 5, "cols": 520 } },
+    { "src": "videos/jubeilunch.mp4", "ascii": { "mode": 3, "cols": 320 }, "pixel": { "mode": 5, "cols": 520 } },
+    { "src": "videos/jubeilunch_extended.mp4", "ascii": { "mode": 3, "cols": 320 }, "pixel": { "mode": 5, "cols": 520 } },
+    { "src": "videos/fg.mp4", "ascii": { "mode": 3, "cols": 320 }, "pixel": { "mode": 5, "cols": 520 } }
   ],
   "loop": true
 }

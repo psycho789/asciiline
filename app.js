@@ -105,6 +105,9 @@ const THERMAL_COLORS = ['#001133', '#003366', '#00f3ff', '#39ff14', '#ffaa00', '
 
 /** Matches ascii_video_player2.py CHAR_RATIO — chars read taller than square pixels. */
 const CHAR_CELL_RATIO = 0.45;
+/** Default ASCII grid width — same ballpark as `stream_server.py --cols 320`. */
+const DEFAULT_ASCII_COLS = 320;
+const DEFAULT_PIXEL_COLS = 520;
 
 const BRAILLE_LUT = (() => {
     const dots = [0x00, 0x01, 0x05, 0x0d, 0x1f, 0x3d, 0x7b, 0xff];
@@ -2431,8 +2434,10 @@ function updateTrackLabel() {
 
 function currentRenderPrefs() {
     const entry = currentPlaylistEntry();
-    if (!entry) return { mode: 3, cols: 220 };
-    return preferPixel ? (entry.pixel || { mode: 5, cols: 400 }) : (entry.ascii || { mode: 3, cols: 220 });
+    if (!entry) return { mode: 3, cols: DEFAULT_ASCII_COLS };
+    return preferPixel
+        ? (entry.pixel || { mode: 5, cols: DEFAULT_PIXEL_COLS })
+        : (entry.ascii || { mode: 3, cols: DEFAULT_ASCII_COLS });
 }
 
 function calcAutoRows(cols, vidW, vidH, isPixel) {
