@@ -358,11 +358,9 @@ body {
 
 .ctrl-help-popover {
     display: none;
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 6px);
-    z-index: 30;
-    width: 240px;
+    position: fixed;
+    z-index: 300;
+    width: min(260px, calc(100vw - 24px));
     padding: 8px 10px;
     border: 1px solid rgba(0, 243, 255, 0.25);
     border-radius: 6px;
@@ -375,6 +373,10 @@ body {
     pointer-events: none;
 }
 
+.ctrl-help-popover.ctrl-help-popover-visible {
+    display: block;
+}
+
 .ctrl-help-popover strong {
     display: block;
     margin-bottom: 4px;
@@ -384,11 +386,6 @@ body {
     text-transform: uppercase;
     color: var(--accent-color);
     font-weight: 700;
-}
-
-.ctrl-help-wrap:hover .ctrl-help-popover,
-.ctrl-help-wrap:focus-within .ctrl-help-popover {
-    display: block;
 }
 
 .fx-ctrl-label-wrap {

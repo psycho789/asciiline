@@ -1054,6 +1054,7 @@ function buildGlobalAudioBar() {
     GLOBAL_AUDIO_CONTROLS.forEach((ctrl) => {
         appendFxControlRow(ctrl, studioAudioControls, { compact: true });
     });
+    wireHelpTooltips(studioAudioControls);
 }
 
 function createHelpButton(helpKey) {
@@ -1079,6 +1080,65 @@ function createHelpButton(helpKey) {
     return wrap;
 }
 
+function hideHelpPopover(wrap) {
+    const pop = wrap.querySelector('.ctrl-help-popover');
+    if (!pop) return;
+    pop.classList.remove('ctrl-help-popover-visible');
+}
+
+function hideAllHelpPopovers() {
+    document.querySelectorAll('.ctrl-help-popover-visible').forEach((pop) => {
+        pop.classList.remove('ctrl-help-popover-visible');
+    });
+}
+
+function positionHelpPopover(btn, pop) {
+    const margin = 10;
+    pop.classList.add('ctrl-help-popover-visible');
+
+    const popW = pop.offsetWidth;
+    const popH = pop.offsetHeight;
+    const br = btn.getBoundingClientRect();
+
+    let top = br.bottom + margin;
+    let left = br.left + br.width / 2 - popW / 2;
+
+    if (top + popH > window.innerHeight - margin) {
+        top = br.top - popH - margin;
+    }
+    if (left < margin) left = margin;
+    if (left + popW > window.innerWidth - margin) {
+        left = window.innerWidth - popW - margin;
+    }
+    if (top < margin) top = margin;
+
+    pop.style.top = `${Math.round(top)}px`;
+    pop.style.left = `${Math.round(left)}px`;
+}
+
+function wireHelpTooltips(root = document) {
+    const scopes = root instanceof Element ? [root] : [document];
+    for (const scope of scopes) {
+        scope.querySelectorAll('.ctrl-help-wrap').forEach((wrap) => {
+            const btn = wrap.querySelector('.ctrl-help-btn');
+            const pop = wrap.querySelector('.ctrl-help-popover');
+            if (!btn || !pop || btn.dataset.helpWired === '1') return;
+            btn.dataset.helpWired = '1';
+
+            const show = () => {
+                hideAllHelpPopovers();
+                positionHelpPopover(btn, pop);
+            };
+            const hide = () => hideHelpPopover(wrap);
+
+            btn.addEventListener('mouseenter', show);
+            btn.addEventListener('focus', show);
+            wrap.addEventListener('mouseleave', hide);
+            btn.addEventListener('blur', hide);
+        });
+    }
+}
+
 function mountTuningHelpButtons() {
     document.querySelectorAll('.ctrl-help-wrap[data-help-key]').forEach((slot) => {
         const key = slot.getAttribute('data-help-key');
@@ -1087,6 +1147,7 @@ function mountTuningHelpButtons() {
             slot.replaceWith(help);
         }
     });
+    wireHelpTooltips(playerSettingsPopover);
 }
 
 let playerSettingsOpen = false;
@@ -1110,6 +1171,7 @@ function positionSettingsPopover() {
 
 function setPlayerSettingsOpen(open) {
     playerSettingsOpen = open;
+    if (!open) hideAllHelpPopovers();
     if (playerSettingsPopover) {
         playerSettingsPopover.hidden = !open;
         if (open) positionSettingsPopover();
@@ -1144,6 +1206,7 @@ function wirePlayerSettings() {
     }
     if (playerSettingsPopover) {
         playerSettingsPopover.addEventListener('click', (e) => e.stopPropagation());
+        playerSettingsPopover.addEventListener('scroll', hideAllHelpPopovers, { passive: true });
     }
     document.addEventListener('click', (e) => {
         if (!playerSettingsOpen) return;
@@ -4251,6 +4314,7 @@ window.addEventListener('resize', () => {
     layoutPlayerContainer();
     syncSelectionTransform();
     if (playerSettingsOpen) positionSettingsPopover();
+    hideAllHelpPopovers();
     if (gridCols > 0 && gridRows > 0 && !pixelMode && renderMode !== 1) {
         if (glyphAtlas) {
             updateGridColsBarLabel(gridCols, gridRows);
