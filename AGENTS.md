@@ -1,105 +1,171 @@
-# AGENTS.md — asciiline
+# AGENTS — asciiline
 
-## Role
+> **Standards authority:** Read and apply repo [`CODING_STANDARDS.md`](CODING_STANDARDS.md) from the first step of every task. Do not duplicate architecture prose here — that file is the contract for boundaries, rewrite policy, and Definition of Done.
 
-You are a coding agent operating on **asciiline** — a local single-user video-to-ASCII
-streaming tool. The codebase has ~10 source files (~1,950 lines): Python FastAPI server
-+ video engine, and a JavaScript browser WebSocket client + Canvas renderer.
+Use this file as shared guidance for AI agents and human contributors on the asciiline project (local video-to-ASCII streaming: FastAPI + OpenCV backend, WebSocket binary protocol, vanilla JS canvas client).
 
-## First Step of Every Task
+## Core Rule (Always On)
 
-Read `CODING_STANDARDS.md` before making any change. If any standard it defines is
-violated in the files you touch, fix those violations as part of your task.
+Always consider and apply the project's coding standards:
+- from the very beginning of every task,
+- at every step while writing or editing code,
+- when creating plan documents,
+- and during all forms of code analysis or review.
 
-## Lint Gates (Mandatory)
+If standards are missing or unclear, pause and ask for clarification before making substantial changes.
 
-After any Python edit, run:
+## Asciiline Operational Gates
+
+After Python edits, run:
+
 ```bash
-cd /Users/adamvoliva/Code/asciiline
+make lint
+# or individually:
 ruff check .
 ruff format --check .
 ```
 
-After any JavaScript edit, run:
+After JavaScript edits:
+
 ```bash
-cd /Users/adamvoliva/Code/asciiline
-npx eslint app.js
+npx eslint app.js client/*.js
 ```
 
-Fix **all** reported issues before declaring any task complete. Both lint gates must
-pass with zero errors.
+After behavior changes, run tests:
 
-If the `Makefile` is present (Sprint 1 creates it), use `make lint` to run both checks
-simultaneously.
+```bash
+make test
+# or: pytest -q
+```
 
-## File Discipline
+Combined quality gate before completing work:
 
-- Do not create new files unless the task explicitly requires it
-- Do not add `print()` statements as debug artifacts — remove them before completing
-- Do not add inline imports inside function bodies (see Import Rule below)
+```bash
+make lint && make test
+```
 
-## Async Rule
+Zero lint errors and passing tests are required before a task is done (see `CODING_STANDARDS.md` §9 and §12).
 
-Inside any `async def` function, use `asyncio.get_running_loop()` — **never**
-`asyncio.get_event_loop()`.
+## WebSocket Protocol Contract
 
-This applies to every usage in `stream_server.py`. The ruff `UP` ruleset detects
-this automatically.
+Do not change sender and receiver in separate stories — protocol changes must stay in sync across `stream_server.py` and `app.js`.
 
-## Import Rule
+| Message | Format |
+|---------|--------|
+| INIT (text) | `INIT:<fps>:<mode>:<cols>:<rows>:<pixel>:<session_id>` — sent once per video; field 7 enables session-scoped `/audio?session=` |
+| Binary frame | 4-byte big-endian unsigned index (`struct.pack(">I", frame_index)`) + payload |
 
-- All imports must be at the **module top level**
-- If you encounter an inline import in a function body during a task, move it to the
-  top-level import block
-- Exception: imports inside `if __name__ == "__main__":` guard blocks are acceptable
+Payload by mode:
+- **Pixel mode:** raw BGR bytes (`rows * cols * 3`)
+- **ASCII color modes (2–5):** `[char, R, G, B]` per pixel (`rows * cols * 4`)
+- **B&W mode (1):** text frame with leading `frame_index` line (legacy text path)
 
-## Dead Code Rule
+Reference implementation: `use_cases/broadcast_hub.py` (encode-once fan-out), `use_cases/stream_session.py` INIT send, and `ports/frame_encoder.py` binary packing.
 
-- Remove unused variable assignments — do not leave dead code in place
-- If `ruff check .` reports `F841` (local variable assigned but never used), delete
-  that variable assignment
-- Do not comment out dead code — delete it
+## Client Render Hot Path (color modes 2–5)
 
-## Test Discipline
-
-- Place tests in `tests/` directory at the repo root
-- Use `pytest` for Python unit tests
-- Write at minimum a smoke test for any new function added to `ascii_video_player2.py`
-  or `stream_server.py`
+- **Atlas build**: `buildGlyphAtlas()` in `client/glyph_atlas.js` — one-time `fillText` per LUT entry when grid cell size changes.
+- **Per frame**: decode binary `[char,R,G,B]` → stamp glyphs into `ImageData` → `putImageData` (main-thread fallback) or worker `postMessage` → `applyWorkerFrame`.
+- **Selection UX**: `selectionBuffer` + `textDecoder.decode()` unchanged; invisible `#ascii-player` overlay for copy/select.
+- **Fallback**: if `Worker` or `OffscreenCanvas` unavailable, `renderColorAsciiFrame()` runs on main thread (same compositor).
+- **Do not** reintroduce per-cell `fillText` in `renderFrame` for modes 2–5.
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `stream_server.py` | FastAPI server, WebSocket streaming, audio route (616 lines) |
-| `ascii_video_player2.py` | Video decode engine, ASCII/pixel mapping (339 lines) |
-| `app.js` | Browser WebSocket client, Canvas renderer, A/V sync (375 lines) |
-| `index.html` | Single-page UI shell (81 lines) |
-| `style.css` | Dark blog theme, player layout (262 lines) |
-| `playlist.json` | Video queue config |
-| `pyproject.toml` | Ruff lint + format config (created Sprint 1) |
-| `Makefile` | lint, lint-fix, format targets (created Sprint 1) |
+| File | Role | ~Lines |
+|------|------|--------|
+| `stream_server.py` | Thin CLI entry + backward-compatible re-exports | ≤30 |
+| `cli/server_main.py` | argparse, uvicorn bootstrap, interactive commands | — |
+| `adapters/fastapi_routes.py` | `create_app()` factory, HTTP/WS routes | — |
+| `adapters/ffmpeg_audio.py` | Async session-scoped FFmpeg audio (`/audio?session=`) with read timeout |
+| `use_cases/broadcast_hub.py` | Shared decode + encode-once fan-out for multi-tab viewers |
+| `use_cases/stream_session.py` | Per-connection pacing, queue advance, hub subscription |
+| `use_cases/build_playlist.py` | `build_queue`, playlist/folder resolution | — |
+| `ports/frame_encoder.py` | `FrameEncoder` port (pixel, B&W text, color binary) | — |
+| `ascii_video_player2.py` | OpenCV decode + ASCII/pixel engine (`VideoDecoder`, `AsciiMapper`) | 352 |
+| `client/glyph_atlas.js` | Glyph atlas builder + `compositeColorAsciiFrame` (shared main/worker) | — |
+| `client/render_worker.js` | OffscreenCanvas worker: frame compositing off main thread | — |
+| `app.js` | Browser client: WebSocket, jitter buffer, atlas/worker render | — |
+| `dev.py` | Dev daemon: start/stop/watch server | 256 |
+| `pyproject.toml` | Ruff config, `[project]` deps, pytest options | — |
+| `Makefile` | `make lint`, `make test`, `make format` | — |
 
-## WebSocket Protocol — Do Not Break
+## Rewrite Posture
 
-The binary frame protocol is a contract between `stream_server.py` and `app.js`:
+Before substantial changes, evaluate patch vs bounded rewrite per `CODING_STANDARDS.md` §7:
+- Do **not** expand the `stream_server.py` god module with new cross-cutting logic.
+- Prefer extracting bounded modules (encoder, session, playlist use case) when adding render modes, multi-client features, or live sources.
+- Every new port or extension seam requires substitution tests per §9.
 
-- **INIT** (text): `INIT:<fps>:<mode>:<cols>:<rows>:<pixel>`
-- **Frame** (binary): 4-byte big-endian frame index + payload
-  - Pixel mode: `[frame_index(4)] + BGR bytes (rows × cols × 3)`
-  - Color ASCII mode: `[frame_index(4)] + [char,R,G,B] per cell (rows × cols × 4)`
+## Import Discipline
 
-Any change to these formats requires a **synchronous update** to both
-`stream_server.py` (sender) and `app.js` (receiver) in the same story.
+- Place imports at module top only.
+- No inline imports in handlers or hot paths unless a documented circular-dependency exception exists.
 
-## Render Modes
+## Async Rule
 
-| Mode | Description |
-|------|-------------|
-| 1 | B&W text (ASCII characters, text frames over WebSocket) |
-| 2–5 | Color ASCII (binary frames with char + RGB per cell) |
-| pixel | Pixel/dot mode (raw BGR binary, no ASCII characters) |
+Inside coroutines, use `asyncio.get_running_loop()` — never `asyncio.get_event_loop()`.
 
----
+## Observability
 
-*Generated 2026-06-12 from `engineering-baseline-gap.md` iteration 1 analysis.*
+- Use the `logging` module for new Python server and daemon code.
+- Do not add new `print()` debug paths in server modules (`adapters/`, `use_cases/`, `cli/`, `ports/`).
+
+## Universal Working Principles
+
+1. Start with intent
+- Restate the goal, constraints, and expected output before implementation.
+- Identify assumptions early; confirm unknowns instead of guessing.
+
+2. Plan before large changes
+- For multi-file or high-impact work, write a short plan first.
+- Keep plans actionable: scope, approach, risks, and verification steps.
+
+3. Keep changes minimal and focused
+- Prefer the smallest change that solves the problem correctly.
+- Avoid unrelated refactors unless explicitly requested.
+
+4. Preserve readability
+- Use clear names and simple control flow.
+- Keep functions cohesive and avoid hidden side effects.
+- Add concise comments only where logic is non-obvious.
+
+5. Maintain consistency
+- Follow existing architecture, patterns, and style in the repository.
+- Keep imports, file structure, and naming conventions consistent.
+
+6. Verify continuously
+- Run relevant checks/tests after meaningful edits.
+- Treat warnings and lint/type errors as actionable unless intentionally deferred.
+
+7. Review with a critical lens
+- Look for correctness, edge cases, regressions, and security concerns.
+- Validate that output matches requirements, not just that code compiles.
+
+8. Communicate clearly
+- Explain what changed, why it changed, and how it was validated.
+- Call out trade-offs, follow-ups, and any remaining risks.
+
+## Planning and Analysis Expectations
+
+When producing plans, specs, or analysis:
+- Anchor recommendations to coding standards and current system constraints.
+- Separate facts, assumptions, and proposals.
+- Include risk assessment and concrete verification criteria.
+- Prefer practical, testable next steps over generic advice.
+
+## Safety and Quality Guardrails
+
+- Do not introduce secrets, credentials, or sensitive data in code or docs.
+- Favor secure defaults and explicit error handling.
+- Keep behavior deterministic and avoid surprising implicit state.
+- Document any intentional deviations from standards.
+
+## Definition of Done
+
+A task is complete when:
+- Changes align with `CODING_STANDARDS.md` throughout,
+- `make lint && make test` pass (or documented deviations),
+- Behavior changes have tests under `tests/`,
+- Architecture boundaries are preserved or improved,
+- and outcomes, risks, and next steps are clearly communicated.

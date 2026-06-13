@@ -1,3 +1,39 @@
+[project]
+name = "asciiline"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "numpy",
+    "opencv-python-headless",
+    "uvicorn[standard]",
+    "websockets",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["use_cases*", "ports*", "adapters*", "cli*"]
+
+[tool.setuptools]
+py-modules = ["stream_server", "ascii_video_player2", "dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

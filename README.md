@@ -32,7 +32,24 @@
 
 1.  **Backend (Python/FastAPI)**: Decodes video using OpenCV, maps pixels to ASCII characters via NumPy, and streams binary data.
 2.  **Frontend (Vanilla JS)**: Receives binary frames via WebSockets, manages a jitter buffer, and renders to a Canvas grid.
-3.  **Communication**: Optimized WebSocket protocol with a custom `INIT` handshake for dynamic resolution/FPS adjustment.
+3.  **Communication**: WebSocket protocol with `INIT` handshake (fps, mode, cols, rows, pixel, session_id) and 4-byte big-endian frame index + payload.
+
+### Server module layout (Sprint 2)
+
+| Path | Role |
+|------|------|
+| `stream_server.py` | Thin CLI entry + backward-compatible re-exports |
+| `cli/server_main.py` | argparse, uvicorn bootstrap |
+| `adapters/fastapi_routes.py` | `create_app()` — HTTP, WebSocket, static files |
+| `adapters/ffmpeg_audio.py` | Async session-scoped `/audio?session=<uuid>` (5s read timeout) |
+| `use_cases/broadcast_hub.py` | One `VideoDecoder` per stream key; refcounted subscriber queues |
+| `use_cases/stream_session.py` | Hub subscription, per-client pacing, queue advance |
+| `use_cases/build_playlist.py` | Playlist / folder / single-file queue builder |
+| `ports/frame_encoder.py` | Pixel, B&W text, and color-binary encoders |
+
+Wire protocol: binary frames unchanged (`>I` index + payload). INIT adds optional 7th field `session_id` for per-tab audio routing.
+
+**Multi-tab:** Opening the same video in multiple browser tabs shares one OpenCV decode loop per `(video_path, cols, rows, pixel_mode, render_mode)` via `BroadcastHub`. Each tab still receives its own paced WebSocket stream and session-scoped audio URL.
 
 ## 📦 Installation
 
@@ -43,6 +60,25 @@ cd ASCILINE
 ```
 
 ### 2. Install dependencies
+
+**Editable install (recommended for development):**
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+This installs runtime dependencies (FastAPI, OpenCV, NumPy, uvicorn, websockets) and dev tools (pytest, ruff, httpx).
+
+**Quality gate after install:**
+
+```bash
+make lint && make test
+```
+
+**Legacy one-liner (runtime only):**
+
 ```bash
 pip install fastapi uvicorn opencv-python numpy websockets
 ```
@@ -122,6 +158,16 @@ python stream_server.py --mode 5 --cols 240 --rows 100
 By default, you only need to specify the width (`--cols`). ASCILINE will automatically calculate the correct `--rows` based on the source video's aspect ratio to prevent stretching.
 
 - **ASCII Mode Recommended:** `--cols 200` to `--cols 240` (Best balance of text detail and cinematic 30 FPS performance).
+
+### Client Performance (Glyph Atlas)
+
+Color ASCII modes (2–5) no longer call `fillText` per cell on every frame. The browser client:
+
+1. Pre-renders the 128-entry `CHAR_LUT` into a glyph atlas once at `buildCanvas()` time (`client/glyph_atlas.js`).
+2. Composites each frame into a single `ImageData` buffer (background fill + glyph stamp per cell).
+3. Blits with one `putImageData` per frame (≤2 canvas operations).
+
+When `OffscreenCanvas` and `Worker` are available, compositing runs in `client/render_worker.js`; the main thread only posts the frame buffer and applies the returned `ImageData`. Pixel mode and B&W mode (1) are unchanged. The WebSocket binary protocol is unchanged.
 - **Pixel Mode Recommended:** `--cols 600` to `--cols 900` (Provides near-HD visual quality. Performance heavily depends on your machine's CPU/VRAM).
 - > **Smart Defaults:** If you do not specify a `--cols` value, ASCILINE automatically defaults to `450` when Pixel Mode is enabled, and `200` for standard ASCII text mode. 
 - > ⚠️ **Hardware Limits & A/V Sync:** If you push the `--cols` too high for your specific hardware (e.g., `1350` on a laptop vs a gaming desktop), the Python backend won't be able to encode and send the massive frames fast enough. When the video stream lags behind the audio, you will experience A/V desync (audio finishing early). If this happens, simply lower your `--cols` value!
@@ -161,6 +207,9 @@ Video paths are resolved automatically — the engine checks the project root an
 Python lint and format gates use [ruff](https://docs.astral.sh/ruff/). Run via `make` or directly:
 
 ```bash
+# Combined quality gate
+make lint && make test
+
 # Check Python code quality
 make lint
 

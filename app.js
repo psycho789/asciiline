@@ -15,6 +15,9 @@ const overlay   = document.getElementById('play-overlay');
 const audioEl   = document.getElementById('ascii-audio');
 const volumeSlider = document.getElementById('volume-slider');
 
+const { buildCharLut, buildGlyphAtlas, compositeColorAsciiFrame } =
+    window.AsciilineGlyphAtlas;
+
 // ── STATE ──
 let state = 'IDLE'; // IDLE | PLAYING
 let ws = null;
@@ -33,6 +36,18 @@ let xPos = null, yPos = null;
 // Pixel Mode (--pixel) — ImageData pixel buffer
 let dotImageData = null;
 
+// Color ASCII atlas + compositor
+let glyphAtlas = null;
+let colorFrameImageData = null;
+let selectionRowStride = 0;
+
+// OffscreenCanvas render worker
+const useRenderWorker =
+    typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined';
+let renderWorker = null;
+let workerBusy = false;
+let workerPendingView = null;
+
 // Selection Layer optimization
 const textDecoder = new TextDecoder();
 let selectionBuffer = null;
@@ -42,12 +57,67 @@ let lastRenderTime = 0;
 let frameCount = 0, currentFps = 0, lastFpsUpdate = 0;
 let streamStartTime = 0;
 
-const CHAR_LUT = new Array(128);
-for (let i = 0; i < 128; i++) CHAR_LUT[i] = String.fromCharCode(i);
+const CHAR_LUT = buildCharLut();
 
 // ═══════════════════════════════════════
 //  CANVAS SETUP
 // ═══════════════════════════════════════
+
+function initRenderWorker() {
+    if (!useRenderWorker) {
+        return;
+    }
+    if (renderWorker) {
+        renderWorker.terminate();
+        renderWorker = null;
+        workerBusy = false;
+        workerPendingView = null;
+    }
+    renderWorker = new Worker('/static/client/render_worker.js');
+    renderWorker.onmessage = (event) => {
+        if (event.data.type !== 'frame') {
+            return;
+        }
+        applyWorkerFrame(event.data);
+        workerBusy = false;
+        if (workerPendingView) {
+            const pending = workerPendingView;
+            workerPendingView = null;
+            postFrameToWorker(pending);
+        }
+    };
+    renderWorker.onerror = () => {
+        workerBusy = false;
+        workerPendingView = null;
+    };
+    syncWorkerInit();
+}
+
+function syncWorkerInit() {
+    if (!renderWorker || !glyphAtlas) {
+        return;
+    }
+    renderWorker.postMessage({
+        type: 'init',
+        atlas: {
+            pixels: glyphAtlas.pixels,
+            width: glyphAtlas.width,
+            cellW: glyphAtlas.cellW,
+            cellH: glyphAtlas.cellH,
+            atlasCols: glyphAtlas.atlasCols,
+        },
+        width: canvas.width,
+        height: canvas.height,
+        xPos: xPos,
+        yPos: yPos,
+    });
+}
+
+function rebuildGlyphAtlas() {
+    glyphAtlas = buildGlyphAtlas(charWidth, charHeight, CHAR_LUT);
+    colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    syncWorkerInit();
+}
 
 function buildCanvas(cols, rows) {
     gridCols = cols;
@@ -73,6 +143,8 @@ function buildCanvas(cols, rows) {
         const d = dotImageData.data;
         for (let i = 3; i < d.length; i += 4) d[i] = 255;
         syncSize(canvas);
+        glyphAtlas = null;
+        colorFrameImageData = null;
         // Hide selection layer — no text to select in dot mode
         player.style.display = 'none';
     } else {
@@ -87,8 +159,11 @@ function buildCanvas(cols, rows) {
         canvas.style.display = 'block';
 
         // Selection Layer Buffer
-        selectionBuffer = new Uint8Array((cols + 1) * rows);
-        for (let r = 0; r < rows; r++) selectionBuffer[r * (cols + 1) + cols] = 10;
+        selectionRowStride = cols + 1;
+        selectionBuffer = new Uint8Array(selectionRowStride * rows);
+        for (let r = 0; r < rows; r++) {
+            selectionBuffer[r * selectionRowStride + cols] = 10;
+        }
 
         syncSize(canvas);
 
@@ -107,6 +182,11 @@ function buildCanvas(cols, rows) {
         yPos = new Float32Array(rows);
         for (let c = 0; c < cols; c++) xPos[c] = c * charWidth;
         for (let r = 0; r < rows; r++) yPos[r] = r * charHeight;
+
+        if (renderMode !== 1) {
+            rebuildGlyphAtlas();
+            initRenderWorker();
+        }
     }
 }
 
@@ -123,6 +203,76 @@ function syncSelectionTransform() {
     const offsetY   = (containerH - renderedH) / 2;
     player.style.transformOrigin = 'top left';
     player.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${fitScale})`;
+}
+
+function updateSelectionLayer() {
+    player.style.display = 'block';
+    player.style.color = 'transparent';
+    player.textContent = textDecoder.decode(selectionBuffer);
+}
+
+function applyWorkerFrame(payload) {
+    const { imageData, selectionBuffer: workerSelection, width, height } = payload;
+    const pixels = new Uint8ClampedArray(imageData);
+    ctx.putImageData(new ImageData(pixels, width, height), 0, 0);
+    selectionBuffer.set(new Uint8Array(workerSelection));
+    updateSelectionLayer();
+}
+
+function postFrameToWorker(view) {
+    if (!renderWorker || !glyphAtlas) {
+        renderColorAsciiFrame(view);
+        return;
+    }
+    if (workerBusy) {
+        workerPendingView = view;
+        return;
+    }
+    workerBusy = true;
+    const viewCopy = new Uint8Array(view);
+    renderWorker.postMessage(
+        {
+            type: 'frame',
+            view: viewCopy,
+            gridCols,
+            gridRows: selectionBuffer.length / selectionRowStride,
+            width: canvas.width,
+            height: canvas.height,
+            charWidth,
+            charHeight,
+            selectionRowStride,
+        },
+        [viewCopy.buffer],
+    );
+}
+
+function renderColorAsciiFrame(view) {
+    if (
+        !colorFrameImageData ||
+        colorFrameImageData.width !== canvas.width ||
+        colorFrameImageData.height !== canvas.height
+    ) {
+        colorFrameImageData = ctx.createImageData(canvas.width, canvas.height);
+    }
+
+    compositeColorAsciiFrame({
+        view,
+        gridCols,
+        gridRows: selectionBuffer.length / selectionRowStride,
+        width: canvas.width,
+        height: canvas.height,
+        charWidth,
+        charHeight,
+        atlas: glyphAtlas,
+        destData: colorFrameImageData.data,
+        selectionBuffer,
+        selectionRowStride,
+        xPos,
+        yPos,
+    });
+
+    ctx.putImageData(colorFrameImageData, 0, 0);
+    updateSelectionLayer();
 }
 
 // ═══════════════════════════════════════
@@ -163,6 +313,7 @@ function connectWebSocket() {
                 targetFps = parseFloat(p[1]);
                 renderMode = parseInt(p[2]);
                 pixelMode = (p.length > 5 && parseInt(p[5]) === 1);
+                const sessionId = p.length > 6 ? p[6] : null;
                 buildCanvas(parseInt(p[3]), parseInt(p[4]));
 
                 // ── AUDIO READY GATE ──
@@ -181,7 +332,9 @@ function connectWebSocket() {
 
                 if (audioEl) {
                     audioEl.pause();
-                    audioEl.src = '/audio?' + Date.now();
+                    audioEl.src = sessionId
+                        ? '/audio?session=' + encodeURIComponent(sessionId)
+                        : '/audio?' + Date.now();
                     audioEl.volume = volumeSlider ? volumeSlider.value : 1.0;
                     audioEl.load();
                     audioEl.play().catch(() => {});
@@ -302,35 +455,13 @@ function renderFrame(now) {
         }
         ctx.putImageData(dotImageData, 0, 0);
     } else {
-        // ── STANDARD COLOR MODES (2-5): fillText per character ──
-        const view = frame; // Already a Uint8Array
-        
-        // 1. Draw Canvas (Background)
-        ctx.fillStyle = '#050505';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.font = 'bold 8px Courier New';
-        ctx.textBaseline = 'top';
-
-        let col = 0, row = 0, prevPacked = -1;
-        for (let idx = 0; idx < view.length; idx += 4) {
-            const packed = (view[idx+1] << 16) | (view[idx+2] << 8) | view[idx+3];
-            if (packed !== prevPacked) {
-                ctx.fillStyle = `rgb(${view[idx+1]},${view[idx+2]},${view[idx+3]})`;
-                prevPacked = packed;
-            }
-            ctx.fillText(CHAR_LUT[view[idx]], xPos[col], yPos[row]);
-            
-            // Fill Selection Buffer (char code is at view[idx])
-            selectionBuffer[row * (gridCols + 1) + col] = view[idx];
-
-            col++;
-            if (col >= gridCols) { col = 0; row++; }
+        // ── COLOR MODES (2-5): atlas blit via ImageData (≤2 canvas ops) ──
+        const view = frame;
+        if (useRenderWorker && renderWorker) {
+            postFrameToWorker(view);
+        } else {
+            renderColorAsciiFrame(view);
         }
-
-        // 2. Update Selection Layer (Foreground)
-        player.style.display = 'block';
-        player.style.color = 'transparent';
-        player.textContent = textDecoder.decode(selectionBuffer);
     }
 }
 
@@ -342,6 +473,12 @@ function finishStream() {
     state = 'IDLE';
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
     if (audioEl) { audioEl.pause(); audioEl.src = ''; }
+    if (renderWorker) {
+        renderWorker.terminate();
+        renderWorker = null;
+        workerBusy = false;
+        workerPendingView = null;
+    }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     player.textContent = '';
     player.style.display = 'none';

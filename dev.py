@@ -17,6 +17,7 @@ Usage:
 """
 
 import argparse
+import logging
 import os
 import signal
 import subprocess
@@ -32,6 +33,10 @@ WATCH_PIDFILE = ROOT / ".watch.pid"
 WATCH_PATHS: list[Path] = [
     ROOT / "stream_server.py",
     ROOT / "ascii_video_player2.py",
+    ROOT / "adapters",
+    ROOT / "use_cases",
+    ROOT / "ports",
+    ROOT / "cli",
     ROOT / "app.js",
     ROOT / "index.html",
     ROOT / "style.css",
@@ -42,6 +47,15 @@ WATCH_PATHS: list[Path] = [
 DEFAULT_VIDEO = "videos/fg.mp4"
 PYTHON = ROOT / ".venv" / "bin" / "python"
 SERVER = ROOT / "stream_server.py"
+
+logger = logging.getLogger(__name__)
+
+
+def configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 
 def server_cmd(port: int, video: str) -> list[str]:
@@ -79,13 +93,13 @@ def is_running(pid: int) -> bool:
 def stop_pidfile(path: Path, label: str) -> None:
     pid = read_pid(path)
     if pid is None:
-        print(f"{label} is not running.")
+        logger.info("%s is not running.", label)
         return
     if not is_running(pid):
-        print(f"{label} PID {pid} not found — removing stale PID file.")
+        logger.warning("%s PID %s not found — removing stale PID file.", label, pid)
         path.unlink(missing_ok=True)
         return
-    print(f"Stopping {label} (PID {pid})...")
+    logger.info("Stopping %s (PID %s)...", label, pid)
     os.kill(pid, signal.SIGTERM)
     for _ in range(20):
         time.sleep(0.1)
@@ -94,7 +108,7 @@ def stop_pidfile(path: Path, label: str) -> None:
     else:
         os.kill(pid, signal.SIGKILL)
     path.unlink(missing_ok=True)
-    print(f"{label} stopped.")
+    logger.info("%s stopped.", label)
 
 
 def daemonize() -> None:
@@ -116,8 +130,8 @@ def daemonize() -> None:
 
 def start_server(port: int, video: str, *, detach: bool = True) -> None:
     if not PYTHON.exists():
-        print(f"[ERROR] Virtual environment not found: {PYTHON}")
-        print("  Run: python -m venv .venv && .venv/bin/pip install -r requirements.txt")
+        logger.error("Virtual environment not found: %s", PYTHON)
+        logger.error("Run: python -m venv .venv && .venv/bin/pip install -e '.[dev]'")
         sys.exit(1)
     cmd = server_cmd(port, video)
     if detach:
@@ -134,11 +148,11 @@ def start_server(port: int, video: str, *, detach: bool = True) -> None:
 def cmd_start(port: int, video: str) -> None:
     pid = read_pid(PIDFILE)
     if pid is not None and is_running(pid):
-        print(f"Server already running (PID {pid}).")
+        logger.info("Server already running (PID %s).", pid)
         return
-    print(f"Starting server on port {port}...")
+    logger.info("Starting server on port %s...", port)
     start_server(port, video, detach=True)
-    print(f"Server started. http://localhost:{port}")
+    logger.info("Server started. http://localhost:%s", port)
 
 
 def cmd_stop() -> None:
@@ -154,14 +168,14 @@ def cmd_restart(port: int, video: str) -> None:
 def cmd_status() -> None:
     pid = read_pid(PIDFILE)
     if pid is not None and is_running(pid):
-        print(f"Server running (PID {pid}).")
+        logger.info("Server running (PID %s).", pid)
     else:
-        print("Server not running.")
+        logger.info("Server not running.")
     wpid = read_pid(WATCH_PIDFILE)
     if wpid is not None and is_running(wpid):
-        print(f"Watcher running (PID {wpid}).")
+        logger.info("Watcher running (PID %s).", wpid)
     else:
-        print("Watcher not running.")
+        logger.info("Watcher not running.")
 
 
 def snapshot_mtimes() -> dict[Path, float]:
@@ -176,7 +190,7 @@ def snapshot_mtimes() -> dict[Path, float]:
 
 def _watch_loop(port: int, video: str) -> None:
     """Poll WATCH_PATHS every second; restart server when any mtime changes."""
-    print("[watch] Watching for changes...", flush=True)
+    logger.info("[watch] Watching for changes...")
     prev = snapshot_mtimes()
     while True:
         time.sleep(1)
@@ -184,7 +198,7 @@ def _watch_loop(port: int, video: str) -> None:
         changed = [p for p in WATCH_PATHS if curr.get(p, 0.0) != prev.get(p, 0.0)]
         if changed:
             names = [p.name for p in changed]
-            print(f"[watch] Changed: {names} — restarting server...", flush=True)
+            logger.info("[watch] Changed: %s — restarting server...", names)
             stop_pidfile(PIDFILE, "Server")
             time.sleep(0.5)
             proc = subprocess.Popen(server_cmd(port, video))
@@ -195,7 +209,7 @@ def _watch_loop(port: int, video: str) -> None:
 def cmd_watch(port: int, video: str) -> None:
     wpid = read_pid(WATCH_PIDFILE)
     if wpid is not None and is_running(wpid):
-        print(f"Watcher already running (PID {wpid}).")
+        logger.info("Watcher already running (PID %s).", wpid)
         return
     child = os.fork()
     if child == 0:
@@ -203,9 +217,9 @@ def cmd_watch(port: int, video: str) -> None:
         WATCH_PIDFILE.write_text(str(os.getpid()))
         _watch_loop(port, video)
         sys.exit(0)
-    print(f"Watcher started (PID {child}). Monitoring {len(WATCH_PATHS)} paths.")
-    print("  Stop: python dev.py stop-watch")
-    print("  Logs: python dev.py logs")
+    logger.info("Watcher started (PID %s). Monitoring %s paths.", child, len(WATCH_PATHS))
+    logger.info("  Stop: python dev.py stop-watch")
+    logger.info("  Logs: python dev.py logs")
 
 
 def cmd_stop_watch() -> None:
@@ -214,14 +228,15 @@ def cmd_stop_watch() -> None:
 
 def cmd_logs(lines: int = 50) -> None:
     if not LOGFILE.exists():
-        print("No log file found.")
+        logger.info("No log file found.")
         return
     content = LOGFILE.read_text().splitlines()
     for line in content[-lines:]:
-        print(line)
+        logger.info("%s", line)
 
 
 def main() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description="asciiline dev server control")
     parser.add_argument("--port", type=int, default=8001, help="Server port (default: 8001)")
     parser.add_argument("--video", default=DEFAULT_VIDEO, help="Video path (default: %(default)s)")

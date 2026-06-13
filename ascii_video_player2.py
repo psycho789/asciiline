@@ -11,6 +11,7 @@ Dependencies:
     pip install opencv-python numpy
 """
 
+import logging
 import os
 import shutil
 import sys
@@ -19,6 +20,8 @@ from typing import ClassVar
 
 import cv2
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Enable ANSI color codes on PowerShell/CMD (Windows):
 os.system("")
@@ -257,15 +260,22 @@ class TerminalRenderer:
         self._pad_x = " " * max(0, (t_cols - cols) // 2)
 
         # ── Info screen ──────────────────────────────────────────────────
-        print(self._CLEAR_SCREEN)
-        print(
-            f"\033[1m[ASCII Player — True Color]\033[0m\n"
-            f"  Orientation : {orientation.upper()}\n"
-            f"  Video       : {vid_w}x{vid_h}\n"
-            f"  ASCII       : {cols}x{rows} characters\n"
-            f"  FPS         : {src_fps:.1f}\n"
-            f"  Quantization: {2 ** (8 - quantize_bits)} levels/channel\n"
-            f"  Exit        : Ctrl+C\n"
+        logger.info(self._CLEAR_SCREEN)
+        logger.info(
+            "\033[1m[ASCII Player — True Color]\033[0m\n"
+            "  Orientation : %s\n"
+            "  Video       : %sx%s\n"
+            "  ASCII       : %sx%s characters\n"
+            "  FPS         : %.1f\n"
+            "  Quantization: %s levels/channel\n"
+            "  Exit        : Ctrl+C",
+            orientation.upper(),
+            vid_w,
+            vid_h,
+            cols,
+            rows,
+            src_fps,
+            2 ** (8 - quantize_bits),
         )
         time.sleep(2.0)
 
@@ -315,6 +325,8 @@ class TerminalRenderer:
 if __name__ == "__main__":
     import argparse
 
+    logging.basicConfig(level=logging.INFO)
+
     parser = argparse.ArgumentParser(
         description="True Color ANSI ASCII video player — zero flicker"
     )
@@ -348,5 +360,5 @@ if __name__ == "__main__":
         )
         renderer.play()
     except FileNotFoundError as e:
-        print(f"\n[Error] {e}")
+        logger.error("[Error] %s", e)
         sys.exit(1)
