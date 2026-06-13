@@ -34,6 +34,7 @@ const fullscreenBtn = document.getElementById('fullscreen-btn');
 const fxPanelEmpty = document.getElementById('fx-panel-empty');
 const demoToggleBtn = document.getElementById('demo-toggle');
 const studioAudioControls = document.getElementById('studio-audio-controls');
+const studioRenderControls = document.getElementById('studio-render-controls');
 const catFilterEl = document.getElementById('fx-cat-filter');
 const volLabel = document.getElementById('vol-label');
 
@@ -106,6 +107,19 @@ const THERMAL_COLORS = ['#001133', '#003366', '#00f3ff', '#39ff14', '#ffaa00', '
 /** Default ASCII grid width — same as `stream_server.py --cols 320`. */
 const DEFAULT_ASCII_COLS = 320;
 const DEFAULT_PIXEL_COLS = 520;
+
+const GRID_COLS_STORAGE = {
+    ascii: 'asciiline-ascii-cols',
+    pixel: 'asciiline-pixel-cols',
+};
+
+const GRID_COLS_LIMITS = {
+    ascii: { min: 120, max: 450, step: 10 },
+    pixel: { min: 200, max: 900, step: 10 },
+};
+
+let gridColsSliderEl = null;
+let gridColsValEl = null;
 
 const BRAILLE_LUT = (() => {
     const dots = [0x00, 0x01, 0x05, 0x0d, 0x1f, 0x3d, 0x7b, 0xff];
@@ -935,6 +949,112 @@ function buildGlobalAudioBar() {
     GLOBAL_AUDIO_CONTROLS.forEach((ctrl) => {
         appendFxControlRow(ctrl, studioAudioControls, { compact: true });
     });
+}
+
+function gridColsLimitsFor(pixel = preferPixel) {
+    return GRID_COLS_LIMITS[pixel ? 'pixel' : 'ascii'];
+}
+
+function loadUserCols(pixel = preferPixel) {
+    const key = GRID_COLS_STORAGE[pixel ? 'pixel' : 'ascii'];
+    const raw = sessionStorage.getItem(key);
+    if (raw === null) return null;
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n)) return null;
+    const lim = gridColsLimitsFor(pixel);
+    return Math.min(lim.max, Math.max(lim.min, n));
+}
+
+function saveUserCols(cols, pixel = preferPixel) {
+    const key = GRID_COLS_STORAGE[pixel ? 'pixel' : 'ascii'];
+    sessionStorage.setItem(key, String(cols));
+}
+
+function resolvePlaybackCols(configCols) {
+    return loadUserCols(preferPixel) ?? configCols;
+}
+
+function formatGridSizeLabel(cols, rows) {
+    return `${cols} × ${rows}`;
+}
+
+function updateGridColsBarLabel(cols, rows) {
+    if (!gridColsValEl) return;
+    if (rows != null) {
+        gridColsValEl.textContent = formatGridSizeLabel(cols, rows);
+        return;
+    }
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+        const r = calcAutoRows(cols, video.videoWidth, video.videoHeight, preferPixel);
+        gridColsValEl.textContent = formatGridSizeLabel(cols, r);
+    } else {
+        gridColsValEl.textContent = String(cols);
+    }
+}
+
+function syncGridColsSlider() {
+    if (!gridColsSliderEl) return;
+    const lim = gridColsLimitsFor();
+    const prefs = currentRenderPrefs();
+    const cols = resolvePlaybackCols(prefs.cols);
+    gridColsSliderEl.min = String(lim.min);
+    gridColsSliderEl.max = String(lim.max);
+    gridColsSliderEl.step = String(lim.step);
+    gridColsSliderEl.value = String(cols);
+    updateGridColsBarLabel(cols);
+}
+
+function rebuildGridIfPlaying() {
+    if (state !== 'PLAYING' && state !== 'PAUSED') return;
+    if (!video.videoWidth || !video.videoHeight) return;
+    const prefs = currentRenderPrefs();
+    const cols = resolvePlaybackCols(prefs.cols);
+    const rows = calcAutoRows(cols, video.videoWidth, video.videoHeight, pixelMode);
+    resetFxState();
+    layoutPlayerContainer();
+    buildCanvas(cols, rows);
+    updateGridColsBarLabel(cols, rows);
+}
+
+function buildGridColsBar() {
+    if (!studioRenderControls) return;
+    studioRenderControls.innerHTML = '';
+
+    const row = document.createElement('div');
+    row.className = 'fx-ctrl-row fx-ctrl-row-compact';
+
+    const lbl = document.createElement('label');
+    lbl.className = 'fx-ctrl-label';
+    lbl.textContent = 'Cols';
+    lbl.setAttribute('for', 'grid-cols-slider');
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.id = 'grid-cols-slider';
+    slider.className = 'fx-ctrl-range';
+    slider.setAttribute('aria-label', 'Grid columns — detail vs performance');
+
+    const valDisplay = document.createElement('output');
+    valDisplay.className = 'fx-ctrl-val grid-cols-val';
+    valDisplay.id = 'grid-cols-val';
+    valDisplay.setAttribute('for', 'grid-cols-slider');
+
+    slider.addEventListener('input', () => {
+        stopDemoMode();
+        const cols = parseInt(slider.value, 10);
+        saveUserCols(cols);
+        updateGridColsBarLabel(cols);
+        rebuildGridIfPlaying();
+    });
+
+    row.appendChild(lbl);
+    row.appendChild(slider);
+    row.appendChild(valDisplay);
+    studioRenderControls.appendChild(row);
+
+    gridColsSliderEl = slider;
+    gridColsValEl = valDisplay;
+    syncGridColsSlider();
 }
 
 function resetFxState() {
@@ -2432,7 +2552,11 @@ function updateTrackLabel() {
 
 function currentRenderPrefs() {
     const entry = currentPlaylistEntry();
-    if (!entry) return { mode: 3, cols: DEFAULT_ASCII_COLS };
+    if (!entry) {
+        return preferPixel
+            ? { mode: 5, cols: DEFAULT_PIXEL_COLS }
+            : { mode: 3, cols: DEFAULT_ASCII_COLS };
+    }
     return preferPixel
         ? (entry.pixel || { mode: 5, cols: DEFAULT_PIXEL_COLS })
         : (entry.ascii || { mode: 3, cols: DEFAULT_ASCII_COLS });
@@ -2573,6 +2697,7 @@ function updateModeToggleUI() {
     modePixelBtn.classList.toggle('active', preferPixel);
     modeAsciiBtn.setAttribute('aria-pressed', String(!preferPixel));
     modePixelBtn.setAttribute('aria-pressed', String(preferPixel));
+    syncGridColsSlider();
 }
 
 function updateCopyFrameButton() {
@@ -3191,10 +3316,12 @@ async function initPlayback() {
         });
     }
 
-    const cols = prefs.cols;
+    const cols = resolvePlaybackCols(prefs.cols);
     const rows = calcAutoRows(cols, video.videoWidth, video.videoHeight, pixelMode);
     layoutPlayerContainer();
     buildCanvas(cols, rows);
+    syncGridColsSlider();
+    updateGridColsBarLabel(cols, rows);
     updateFxPickerUI();
 }
 
@@ -3494,16 +3621,19 @@ window.addEventListener('resize', () => {
     layoutPlayerContainer();
     if (gridCols > 0 && gridRows > 0) {
         buildCanvas(gridCols, gridRows);
+        updateGridColsBarLabel(gridCols, gridRows);
     }
 });
 
 video.addEventListener('loadedmetadata', () => {
     layoutPlayerContainer();
+    syncGridColsSlider();
 });
 
 // ── BOOT ──────────────────────────────────────────────────
 
 buildFxPicker();
+buildGridColsBar();
 buildGlobalAudioBar();
 container.className = FX_PRESETS[activeFx]?.css || 'fx-clean';
 
