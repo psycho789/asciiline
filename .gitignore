@@ -27,6 +27,7 @@ node_modules/
 # Dev daemon runtime
 .server.log
 .server.pid
+.watch.pid
 
 # Personal notes
 mynotes.txt

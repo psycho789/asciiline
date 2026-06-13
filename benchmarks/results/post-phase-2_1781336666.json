@@ -1,0 +1,230 @@
+{
+  "label": "post-phase-2",
+  "timestamp": "2026-06-13T07:44:26Z",
+  "ws_url": "ws://localhost:8001/ws?cols=280&aspect=auto",
+  "metrics_url": "http://localhost:8001/metrics",
+  "duration_sec": 30.02,
+  "init_message": "INIT:30.0:3:280:79:0:acb94595-31ca-474f-aee5-434a87d98ed9",
+  "frames_received": 900,
+  "bytes_received": 79635657,
+  "avg_fps": 29.98,
+  "avg_kbps": 20727.69,
+  "wire_bytes_per_frame": 88484,
+  "bytes_per_frame_avg": 88484,
+  "encode_fps_steady": 30.07,
+  "encode_fps_avg": 30.07,
+  "bytes_per_frame_metrics_steady": 88484,
+  "peak_clients": 1,
+  "metrics_samples": [
+    {
+      "connected_clients": 0,
+      "active_streams": 0,
+      "encode_fps": 0.0,
+      "bytes_per_frame": 0,
+      "timestamp": 1781336635.871667
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 0.0,
+      "bytes_per_frame": 0,
+      "timestamp": 1781336636.8744278
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 31.07,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336637.877165
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.01,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336638.8800042
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.97,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336639.8946629
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.04,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336640.89697
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 27.92,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336642.173467
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 32.04,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336643.196783
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336644.199168
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.01,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336645.201246
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.98,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336646.202849
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.01,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336647.205367
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336648.207242
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.98,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336649.2103539
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336650.2131782
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 0.0,
+      "bytes_per_frame": 0,
+      "timestamp": 1781336651.216334
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 31.04,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336652.2224379
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.98,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336653.2251031
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.98,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336654.23921
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.04,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336655.2412229
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336656.243244
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336657.245352
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336658.247392
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336659.249782
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.97,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336660.252275
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336661.255208
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.98,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336662.2584152
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.04,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336663.260872
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 30.0,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336664.2743838
+    },
+    {
+      "connected_clients": 1,
+      "active_streams": 1,
+      "encode_fps": 29.91,
+      "bytes_per_frame": 88484,
+      "timestamp": 1781336665.277556
+    }
+  ]
+}
