@@ -156,6 +156,32 @@ Each entry can override the global `--mode`, `--pixel`, `--vol`, and `--cols` de
 ```
 Video paths are resolved automatically — the engine checks the project root and the `videos/` subfolder, so you can write just the filename.
 
+## 🔧 Development & Lint Tooling
+
+Python lint and format gates use [ruff](https://docs.astral.sh/ruff/). Run via `make` or directly:
+
+```bash
+# Check Python code quality
+make lint
+
+# Auto-fix lint issues
+make lint-fix
+
+# Format Python files
+make format
+```
+
+Or run the tools directly:
+```bash
+ruff check .          # Python lint (errors/warnings)
+ruff format --check . # Python format check (no changes)
+ruff format .         # Apply formatting
+npx eslint app.js     # JavaScript lint (requires eslint.config.js — Sprint 2)
+```
+
+See `CODING_STANDARDS.md` for full coding standards and quality gate requirements.
+See `AGENTS.md` for AI coding agent guidance.
+
 ## 📜 License & Ethical Guardrails
 
 **MIT License (with Anti-Ad Restriction)**

@@ -19,15 +19,14 @@ const volumeSlider = document.getElementById('volume-slider');
 let state = 'IDLE'; // IDLE | PLAYING
 let ws = null;
 const frameBuffer = [];
-const BUFFER_SIZE = 4;
+const MAX_FRAME_BUFFER = 20;
 let targetFps = 24;
-let frameInterval = 1000 / targetFps;
 let renderMode = 1;
 let pixelMode = false;
 let readyToRender = false;
 
 // Grid & Dimensions
-let gridCols = 0, gridRows = 0;
+let gridCols = 0;
 let charWidth = 0, charHeight = 0;
 let xPos = null, yPos = null;
 
@@ -52,7 +51,6 @@ for (let i = 0; i < 128; i++) CHAR_LUT[i] = String.fromCharCode(i);
 
 function buildCanvas(cols, rows) {
     gridCols = cols;
-    gridRows = rows;
 
     // Sizing and positioning for both layers
     const syncSize = (el) => {
@@ -94,26 +92,14 @@ function buildCanvas(cols, rows) {
 
         syncSize(canvas);
 
-        // Selection layer: match canvas object-fit:contain position exactly
-        const containerW = container.clientWidth;
-        const containerH = container.clientHeight;
-        const fitScaleX = containerW / canvas.width;
-        const fitScaleY = containerH / canvas.height;
-        const fitScale  = Math.min(fitScaleX, fitScaleY);
-        const renderedW = canvas.width  * fitScale;
-        const renderedH = canvas.height * fitScale;
-        const offsetX   = (containerW - renderedW) / 2;
-        const offsetY   = (containerH - renderedH) / 2;
-
         player.style.width  = canvas.width + 'px';
         player.style.height = canvas.height + 'px';
         player.style.position = 'absolute';
         player.style.top = '0';
         player.style.left = '0';
-        player.style.transformOrigin = 'top left';
-        player.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${fitScale})`;
         player.style.fontSize = '8px';
         player.style.lineHeight = '8px';
+        syncSelectionTransform();
 
         ctx.font = 'bold 8px Courier New';
         ctx.textBaseline = 'top';
@@ -122,6 +108,21 @@ function buildCanvas(cols, rows) {
         for (let c = 0; c < cols; c++) xPos[c] = c * charWidth;
         for (let r = 0; r < rows; r++) yPos[r] = r * charHeight;
     }
+}
+
+function syncSelectionTransform() {
+    if (pixelMode || !canvas.width || !canvas.height) return;
+    const containerW = container.clientWidth;
+    const containerH = container.clientHeight;
+    const fitScaleX = containerW / canvas.width;
+    const fitScaleY = containerH / canvas.height;
+    const fitScale  = Math.min(fitScaleX, fitScaleY);
+    const renderedW = canvas.width  * fitScale;
+    const renderedH = canvas.height * fitScale;
+    const offsetX   = (containerW - renderedW) / 2;
+    const offsetY   = (containerH - renderedH) / 2;
+    player.style.transformOrigin = 'top left';
+    player.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${fitScale})`;
 }
 
 // ═══════════════════════════════════════
@@ -160,7 +161,6 @@ function connectWebSocket() {
             if (event.data.startsWith('INIT:')) {
                 const p = event.data.split(':');
                 targetFps = parseFloat(p[1]);
-                frameInterval = 1000 / targetFps;
                 renderMode = parseInt(p[2]);
                 pixelMode = (p.length > 5 && parseInt(p[5]) === 1);
                 buildCanvas(parseInt(p[3]), parseInt(p[4]));
@@ -200,7 +200,7 @@ function connectWebSocket() {
                     // No audio element at all → start immediately
                     beginRendering();
                 }
-                return;
+        return;
             }
             
             // Mode 1: Text Frame with Timestamp
@@ -220,7 +220,7 @@ function connectWebSocket() {
             frameBuffer.push({ data: frameData, time: frameTime });
         }
 
-        while (frameBuffer.length > BUFFER_SIZE * 5) frameBuffer.shift();
+        while (frameBuffer.length > MAX_FRAME_BUFFER) frameBuffer.shift();
     };
 
     ws.onopen = () => { statusEl.textContent = 'Buffering...'; };
@@ -372,4 +372,5 @@ window.addEventListener('resize', () => {
     };
     syncSize(canvas);
     syncSize(player);
+    syncSelectionTransform();
 });

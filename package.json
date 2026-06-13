@@ -1,0 +1,13 @@
+{
+  "name": "asciiline",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "latest"
+  },
+  "scripts": {
+    "lint": "eslint app.js",
+    "lint:fix": "eslint --fix app.js"
+  }
+}

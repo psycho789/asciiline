@@ -11,19 +11,22 @@ Priority Order:
 """
 
 import asyncio
-import subprocess
 import json
-import numpy as np
+import os
+import shutil
+import struct
+import subprocess
+
 import cv2
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import numpy as np
+import uvicorn
+from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-import uvicorn
-import os
 from websockets.exceptions import ConnectionClosed
 
 # Import the existing engine (ascii_video_player2.py)
-from ascii_video_player2 import VideoDecoder, AsciiMapper
+from ascii_video_player2 import AsciiMapper, VideoDecoder
 
 app = FastAPI()
 
@@ -51,14 +54,17 @@ def calc_auto_rows(cols: int, vid_w: int, vid_h: int, pixel_mode: bool) -> int:
     else:
         return max(1, round(cols / ratio / 2))
 
+
 # Serve static files (style.css, app.js) from the project directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app.mount("/static", StaticFiles(directory=BASE_DIR), name="static")
 
+
 def get_html_content():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
-    with open(html_path, "r", encoding="utf-8") as f:
+    with open(html_path, encoding="utf-8") as f:
         return f.read()
+
 
 def resolve_video_path(video: str) -> str:
     """
@@ -78,13 +84,15 @@ def resolve_video_path(video: str) -> str:
             return path
     return video  # Return original; error will be caught during playback
 
+
 def load_playlist(playlist_path: str) -> list[dict]:
     """Loads playlist from a JSON file and resolves all video paths."""
-    with open(playlist_path, "r", encoding="utf-8") as f:
+    with open(playlist_path, encoding="utf-8") as f:
         items = json.load(f)
     for item in items:
         item["video"] = resolve_video_path(item["video"])
     return items
+
 
 def load_folder(folder_path: str, default_mode: int, default_vol: int) -> list[dict]:
     """
@@ -96,13 +104,10 @@ def load_folder(folder_path: str, default_mode: int, default_vol: int) -> list[d
     with os.scandir(folder_path) as it:
         for entry in it:
             if entry.is_file() and entry.name.lower().endswith(supported):
-                entries.append({
-                    "video": entry.path,
-                    "mode":  default_mode,
-                    "vol":   default_vol
-                })
+                entries.append({"video": entry.path, "mode": default_mode, "vol": default_vol})
     # Filesystem order (no sort applied)
     return entries
+
 
 def build_queue(args) -> list[dict]:
     """
@@ -117,9 +122,9 @@ def build_queue(args) -> list[dict]:
         # Fill missing fields with global defaults
         for item in items:
             item.setdefault("mode", args.mode)
-            item.setdefault("vol",  args.vol)
+            item.setdefault("vol", args.vol)
             item.setdefault("pixel", args.pixel)
-            
+
             is_pixel = item.get("pixel", False)
             default_cols = args.cols if args.cols is not None else (450 if is_pixel else 200)
             item.setdefault("cols", default_cols)
@@ -138,7 +143,16 @@ def build_queue(args) -> list[dict]:
 
     # Legacy: single video argument
     default_cols = args.cols if args.cols is not None else (450 if args.pixel else 200)
-    return [{"video": resolve_video_path(args.video), "mode": args.mode, "vol": args.vol, "pixel": args.pixel, "cols": default_cols, "rows": args.rows}]
+    return [
+        {
+            "video": resolve_video_path(args.video),
+            "mode": args.mode,
+            "vol": args.vol,
+            "pixel": args.pixel,
+            "cols": default_cols,
+            "rows": args.rows,
+        }
+    ]
 
 
 # ── APP STATE ──────────────────────────────────────────────
@@ -146,6 +160,7 @@ def build_queue(args) -> list[dict]:
 # current_index tracks which video is playing.
 # loop flag controls infinite playback.
 # ──────────────────────────────────────────────────────────
+
 
 @app.get("/")
 async def root():
@@ -163,19 +178,17 @@ async def audio_stream():
       5 = Double  (2.0x)
     """
     queue = getattr(app.state, "queue", [])
-    idx   = getattr(app.state, "current_index", 0)
+    idx = getattr(app.state, "current_index", 0)
     entry = queue[idx] if queue else {}
 
-    vol_level  = entry.get("vol", 1)
+    vol_level = entry.get("vol", 1)
     video_path = entry.get("video", "video.mp4")
 
     # vol 0 → skip audio entirely, no FFmpeg process
     if vol_level <= 0:
-        from fastapi import Response
         return Response(status_code=204)
 
     if not os.path.exists(video_path):
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Video file not found")
 
     # Map 1-5 → 1.0x-2.0x FFmpeg volume
@@ -185,18 +198,25 @@ async def audio_stream():
         process = subprocess.Popen(
             [
                 "ffmpeg",
-                "-i", video_path,
+                "-i",
+                video_path,
                 "-vn",
-                "-filter:a", f"volume={ffmpeg_vol}",
-                "-acodec", "libmp3lame",
-                "-ab", "128k",
-                "-ar", "44100",
-                "-f", "mp3",
-                "-loglevel", "quiet",
-                "pipe:1"
+                "-filter:a",
+                f"volume={ffmpeg_vol}",
+                "-acodec",
+                "libmp3lame",
+                "-ab",
+                "128k",
+                "-ar",
+                "44100",
+                "-f",
+                "mp3",
+                "-loglevel",
+                "quiet",
+                "pipe:1",
             ],
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         )
         try:
             while True:
@@ -207,11 +227,13 @@ async def audio_stream():
         finally:
             process.stdout.close()
             process.wait()
+            if process.returncode not in (0, -15):  # -15 = SIGTERM (normal client disconnect)
+                print(
+                    f"[ERROR] FFmpeg exited with code {process.returncode} for video: {video_path}"
+                )
 
     return StreamingResponse(
-        audio_generator(),
-        media_type="audio/mpeg",
-        headers={"Accept-Ranges": "bytes"}
+        audio_generator(), media_type="audio/mpeg", headers={"Accept-Ranges": "bytes"}
     )
 
 
@@ -225,7 +247,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
 
     queue = getattr(app.state, "queue", [])
-    loop  = getattr(app.state, "loop", False)
+    loop = getattr(app.state, "loop", False)
 
     if not queue:
         await websocket.send_text("Error: No video in queue!")
@@ -236,20 +258,22 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            entry      = queue[queue_index]
+            entry = queue[queue_index]
             video_path = entry["video"]
-            render_mode= entry["mode"]
+            render_mode = entry["mode"]
             pixel_mode = entry.get("pixel", False)
-            cols       = entry.get("cols", 200)
-            rows_cfg   = entry.get("rows", 0)
+            cols = entry.get("cols", 200)
+            rows_cfg = entry.get("rows", 0)
 
             # IMPORTANT: Update current_index BEFORE sending INIT so that
             # when the client reloads /audio in response to INIT, the endpoint
             # already serves the correct video's audio.
             app.state.current_index = queue_index
 
-            print(f"[PLAYING] ({queue_index + 1}/{len(queue)}) {video_path}  "
-                  f"mode={render_mode}  pixel={pixel_mode}  vol={entry['vol']}")
+            print(
+                f"[PLAYING] ({queue_index + 1}/{len(queue)}) {video_path}  "
+                f"mode={render_mode}  pixel={pixel_mode}  vol={entry['vol']}"
+            )
 
             # ── Auto-calculate rows if not specified ──
             try:
@@ -282,11 +306,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         break
                 continue
 
-            mapper       = AsciiMapper()
-            source_fps   = decoder.fps
-            MAX_FPS      = 30
-            char_byte_lut= np.array([ord(c) for c in mapper._lut], dtype=np.uint8)
-            qb           = {5: 0, 4: 2, 3: 3, 2: 5}.get(render_mode, 0)
+            mapper = AsciiMapper()
+            source_fps = decoder.fps
+            MAX_FPS = 30
+            char_byte_lut = np.array([ord(c) for c in mapper._lut], dtype=np.uint8)
+            qb = {5: 0, 4: 2, 3: 3, 2: 5}.get(render_mode, 0)
 
             # ── FPS DECIMATION ──
             # If source > 30 FPS, skip every Nth frame using grab() (no decode).
@@ -299,14 +323,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 effective_fps = source_fps
             frame_t = 1.0 / effective_fps
 
-            await websocket.send_text(f"INIT:{effective_fps}:{render_mode}:{cols}:{rows}:{int(pixel_mode)}")
+            await websocket.send_text(
+                f"INIT:{effective_fps}:{render_mode}:{cols}:{rows}:{int(pixel_mode)}"
+            )
             if skip_n > 1:
-                print(f"[FPS CAP] {source_fps} FPS → {effective_fps} FPS (skip every {skip_n} frames)")
+                print(
+                    f"[FPS CAP] {source_fps} FPS → {effective_fps} FPS (skip every {skip_n} frames)"
+                )
 
             frame_buf = np.empty((rows, cols, 4), dtype=np.uint8) if render_mode > 1 else None
 
-            import struct
-            start_time = asyncio.get_event_loop().time()
+            start_time = asyncio.get_running_loop().time()
             frame_index = 0
 
             # Pre-allocate send buffer WITH header space to avoid per-frame concat
@@ -317,7 +344,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 # ASCII Color: 4-byte header + [char,R,G,B] per pixel
                 ascii_send_buf = bytearray(4 + rows * cols * 4)
 
-            raw_frame_num = 0
             try:
                 while True:
                     # ── FPS DECIMATION via grab() ──
@@ -339,15 +365,15 @@ async def websocket_endpoint(websocket: WebSocket):
                         bgr_bytes = bgr_frame.tobytes()
                         struct.pack_into(">I", pixel_send_buf, 0, frame_index)
                         pixel_send_buf[4:] = bgr_bytes
-                        await websocket.send_bytes(bytes(pixel_send_buf))
+                        await websocket.send_bytes(pixel_send_buf)
                     else:
                         indices = np.floor_divide(gray_frame, max(1, 256 // mapper._n))
                         np.clip(indices, 0, mapper._n - 1, out=indices)
 
                         if render_mode == 1:
                             char_matrix = mapper._lut[indices]
-                            lines = [''.join(row) for row in char_matrix]
-                            await websocket.send_text(f"{frame_index}\n" + '\n'.join(lines))
+                            lines = ["".join(row) for row in char_matrix]
+                            await websocket.send_text(f"{frame_index}\n" + "\n".join(lines))
                         else:
                             char_codes = char_byte_lut[indices]
                             rgb = bgr_frame[:, :, ::-1]
@@ -357,13 +383,13 @@ async def websocket_endpoint(websocket: WebSocket):
                             frame_buf[:, :, 1:] = rgb
                             struct.pack_into(">I", ascii_send_buf, 0, frame_index)
                             ascii_send_buf[4:] = frame_buf.tobytes()
-                            await websocket.send_bytes(bytes(ascii_send_buf))
+                            await websocket.send_bytes(ascii_send_buf)
 
-                    elapsed = asyncio.get_event_loop().time() - start_time
+                    elapsed = asyncio.get_running_loop().time() - start_time
                     wait = (frame_index * frame_t) - elapsed
                     if wait > 0:
                         await asyncio.sleep(wait)
-                    
+
                     frame_index += 1
 
             finally:
@@ -383,15 +409,21 @@ async def websocket_endpoint(websocket: WebSocket):
         print("Client disconnected from the stream.")
 
 
-ASCII_LOGO = "\033[36m" + r"""
-    _    ____   ____ ___ _     ___ _   _ _____ 
+ASCII_LOGO = (
+    "\033[36m"
+    + r"""
+    _    ____   ____ ___ _     ___ _   _ _____
    / \  / ___| / ___|_ _| |   |_ _| \ | | ____|
-  / _ \ \___ \| |    | || |    | ||  \| |  _|  
- / ___ \ ___) | |___ | || |___ | || |\  | |___ 
+  / _ \ \___ \| |    | || |    | ||  \| |  _|
+ / ___ \ ___) | |___ | || |___ | || |\  | |___
 /_/   \_\____/ \____|___|_____|___|_| \_|_____|
-""" + "\033[0m"
+"""
+    + "\033[0m"
+)
 
-HELP_TEXT = "\033[1;37m" + """
+HELP_TEXT = (
+    "\033[1;37m"
+    + """
 ╔═══════════════════════════════════════════════════╗
 ║               ASCILINE  —  COMMANDS               ║
 ╠═══════════════════════════════════════════════════╣
@@ -424,48 +456,54 @@ HELP_TEXT = "\033[1;37m" + """
 ║  \033[32m--port\033[1;37m  \033[35mN\033[1;37m      Server port    (default: 8000)    ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝
-""" + "\033[0m"
+"""
+    + "\033[0m"
+)
 
 
 def print_status():
     """Prints current server status."""
     queue = getattr(app.state, "queue", [])
-    idx   = getattr(app.state, "current_index", 0)
-    loop  = getattr(app.state, "loop", False)
-    cols  = getattr(app.state, "cols", 0)
-    rows  = getattr(app.state, "rows", 0)
+    idx = getattr(app.state, "current_index", 0)
+    loop = getattr(app.state, "loop", False)
+    cols = getattr(app.state, "cols", 0)
+    rows = getattr(app.state, "rows", 0)
 
-    print(f"\n\033[1;37m{'═'*55}\033[0m")
+    print(f"\n\033[1;37m{'═' * 55}\033[0m")
     print(f" \033[32m▶\033[0m \033[1mQueue\033[0m      : {len(queue)} video(s)")
     print(f" \033[32m▶\033[0m \033[1mNow Playing\033[0m: {idx + 1}/{len(queue)}")
     if queue and idx < len(queue):
         entry = queue[idx]
-        px = ' \033[35m[PIXEL]\033[0m' if entry.get('pixel') else ''
-        cols = entry.get('cols', cols)
-        rows = entry.get('rows', rows)
+        px = " \033[35m[PIXEL]\033[0m" if entry.get("pixel") else ""
+        cols = entry.get("cols", cols)
+        rows = entry.get("rows", rows)
         print(f" \033[32m▶\033[0m \033[1mVideo\033[0m      : \033[36m{entry['video']}\033[0m")
-        print(f" \033[32m▶\033[0m \033[1mSettings\033[0m   : mode={entry['mode']}{px} vol={entry['vol']}")
+        print(
+            f" \033[32m▶\033[0m \033[1mSettings\033[0m   : mode={entry['mode']}{px} vol={entry['vol']}"
+        )
     res_str = f"{cols}x{rows}" if rows > 0 else f"{cols}x(auto)"
     print(f" \033[32m▶\033[0m \033[1mResolution\033[0m : {res_str}")
     print(f" \033[32m▶\033[0m \033[1mLoop\033[0m       : {'ON' if loop else 'OFF'}")
-    print(f"\033[1;37m{'═'*55}\033[0m\n")
+    print(f"\033[1;37m{'═' * 55}\033[0m\n")
 
 
 def command_loop():
     """Interactive command listener — runs in main thread alongside uvicorn."""
-    print(f" \033[90mType \033[36m/help\033[90m for available commands.\033[0m\n")
+    print(" \033[90mType \033[36m/help\033[90m for available commands.\033[0m\n")
     while True:
         try:
             cmd = input().strip().lower()
-            if cmd in ('/help', 'help'):
+            if cmd in ("/help", "help"):
                 print(HELP_TEXT)
-            elif cmd in ('/status', 'status'):
+            elif cmd in ("/status", "status"):
                 print_status()
-            elif cmd in ('/quit', 'quit', 'exit'):
+            elif cmd in ("/quit", "quit", "exit"):
                 print("\n \033[33m⏹  Shutting down ASCILINE...\033[0m\n")
                 os._exit(0)
             elif cmd:
-                print(f" \033[90mUnknown command: '{cmd}'. Type \033[36m/help\033[90m for options.\033[0m")
+                print(
+                    f" \033[90mUnknown command: '{cmd}'. Type \033[36m/help\033[90m for options.\033[0m"
+                )
         except (EOFError, KeyboardInterrupt):
             print("\n \033[33m⏹  Shutting down ASCILINE...\033[0m\n")
             os._exit(0)
@@ -474,65 +512,68 @@ def command_loop():
 if __name__ == "__main__":
     import argparse
     import os
+    import sys
     import threading
-    
+
     # Enable ANSI escape sequences on Windows
     os.system("")
 
     parser = argparse.ArgumentParser(
         description=f"{ASCII_LOGO}\nReal-Time ASCII Web Server\n"
-                    "Stream local videos to your browser with high performance ASCII and Pixel rendering.",
-        formatter_class=argparse.RawTextHelpFormatter
+        "Stream local videos to your browser with high performance ASCII and Pixel rendering.",
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     # ── Source ──
-    src = parser.add_argument_group('\033[33mSource\033[0m')
-    src.add_argument(
-        "video",
-        nargs="?",
-        default="video.mp4",
-        help="Single video file to stream"
-    )
+    src = parser.add_argument_group("\033[33mSource\033[0m")
+    src.add_argument("video", nargs="?", default="video.mp4", help="Single video file to stream")
     src.add_argument(
         "--playlist",
         metavar="FILE",
         default=None,
         help="Path to a playlist JSON file\n"
-             "  Format: [{\"video\": \"a.mp4\", \"mode\": 5, \"vol\": 3}, ...]"
+        '  Format: [{"video": "a.mp4", "mode": 5, "vol": 3}, ...]',
     )
     src.add_argument(
         "--folder",
         metavar="DIR",
         default=None,
-        help="Path to a folder; plays all videos in filesystem order"
+        help="Path to a folder; plays all videos in filesystem order",
     )
 
     # ── Render ──
-    render = parser.add_argument_group('\033[33mRender\033[0m')
+    render = parser.add_argument_group("\033[33mRender\033[0m")
     render.add_argument(
         "--mode",
-        type=int, choices=[1, 2, 3, 4, 5], default=1,
-        help="Color quality: 1=B&W  2=512c  3=32Kc  4=262Kc  5=16M Ultra"
+        type=int,
+        choices=[1, 2, 3, 4, 5],
+        default=1,
+        help="Color quality: 1=B&W  2=512c  3=32Kc  4=262Kc  5=16M Ultra",
     )
     render.add_argument(
         "--pixel",
-        action="store_true", default=False,
-        help="Pixel mode: replaces ASCII characters with colored blocks (combine with --mode 2-5)"
+        action="store_true",
+        default=False,
+        help="Pixel mode: replaces ASCII characters with colored blocks (combine with --mode 2-5)",
     )
-    render.add_argument("--cols", type=int, default=None, help="Grid columns (default: 200 for text, 450 for pixel)")
-    render.add_argument("--rows", type=int, default=0,   help="Grid rows    (default: auto from video aspect ratio)")
+    render.add_argument(
+        "--cols", type=int, default=None, help="Grid columns (default: 200 for text, 450 for pixel)"
+    )
+    render.add_argument(
+        "--rows", type=int, default=0, help="Grid rows    (default: auto from video aspect ratio)"
+    )
 
     # ── Playback ──
-    playback = parser.add_argument_group('\033[33mPlayback\033[0m')
+    playback = parser.add_argument_group("\033[33mPlayback\033[0m")
     playback.add_argument(
-        "--vol",
-        type=int, default=1,
-        help="Volume 0-5  (0=muted, 1=normal, 5=double)"
+        "--vol", type=int, default=1, help="Volume 0-5  (0=muted, 1=normal, 5=double)"
     )
-    playback.add_argument("--loop", action="store_true", default=False, help="Loop the queue infinitely")
+    playback.add_argument(
+        "--loop", action="store_true", default=False, help="Loop the queue infinitely"
+    )
 
     # ── Server ──
-    srv = parser.add_argument_group('\033[33mServer\033[0m')
+    srv = parser.add_argument_group("\033[33mServer\033[0m")
     srv.add_argument("--port", type=int, default=8000, help="Server port (default: 8000)")
 
     args = parser.parse_args()
@@ -550,21 +591,21 @@ if __name__ == "__main__":
         exit(1)
 
     # Save state
-    app.state.queue         = queue
+    app.state.queue = queue
     app.state.current_index = 0
-    app.state.loop          = args.loop
-    global_default_cols     = args.cols if args.cols is not None else (450 if args.pixel else 200)
-    app.state.cols          = global_default_cols
-    app.state.rows          = args.rows
+    app.state.loop = args.loop
+    global_default_cols = args.cols if args.cols is not None else (450 if args.pixel else 200)
+    app.state.cols = global_default_cols
+    app.state.rows = args.rows
 
     # ── High FPS Warning ──
     high_fps_videos = []
     for entry in queue:
-        cap = cv2.VideoCapture(entry['video'])
+        cap = cv2.VideoCapture(entry["video"])
         if cap.isOpened():
             fps = cap.get(cv2.CAP_PROP_FPS)
             if fps > 35:  # Consider > 35 as high FPS
-                high_fps_videos.append((entry['video'], fps))
+                high_fps_videos.append((entry["video"], fps))
         cap.release()
 
     if high_fps_videos:
@@ -575,28 +616,39 @@ if __name__ == "__main__":
         print("High FPS videos will automatically be decimated to ~30 FPS,")
         print("but performance may still drop depending on the system's CPU.")
         print("For optimal performance, we recommend using 30 FPS source videos.\033[0m\n")
-        
-        while True:
-            choice = input("\033[1mDo you want to continue anyway? (y/n): \033[0m").strip().lower()
-            if choice == 'y':
-                break
-            elif choice == 'n':
-                print("Exiting...")
-                exit(0)
+
+        if sys.stdin.isatty():
+            while True:
+                choice = (
+                    input("\033[1mDo you want to continue anyway? (y/n): \033[0m").strip().lower()
+                )
+                if choice == "y":
+                    break
+                elif choice == "n":
+                    print("Exiting...")
+                    exit(0)
+        else:
+            print("[WARNING] Non-interactive stdin — continuing automatically (daemon mode).")
 
     # ── Startup Banner ──
     print(ASCII_LOGO)
-    print(f"\033[1;37m{'═'*55}\033[0m")
+    print(f"\033[1;37m{'═' * 55}\033[0m")
     print(f" \033[32m▶\033[0m \033[1mQueue\033[0m     : {len(queue)} video(s)")
     print(f" \033[32m▶\033[0m \033[1mLoop\033[0m      : {'ON' if args.loop else 'OFF'}")
-    res_str = f"{global_default_cols}x{args.rows}" if args.rows > 0 else f"{global_default_cols}x(auto)"
+    res_str = (
+        f"{global_default_cols}x{args.rows}" if args.rows > 0 else f"{global_default_cols}x(auto)"
+    )
     print(f" \033[32m▶\033[0m \033[1mResolution\033[0m: {res_str}")
-    print(f" \033[32m▶\033[0m \033[1mDefault\033[0m   : mode={args.mode} | pixel={'ON' if args.pixel else 'OFF'} | vol={args.vol}")
-    print(f"\033[1;37m{'─'*55}\033[0m")
+    print(
+        f" \033[32m▶\033[0m \033[1mDefault\033[0m   : mode={args.mode} | pixel={'ON' if args.pixel else 'OFF'} | vol={args.vol}"
+    )
+    print(f"\033[1;37m{'─' * 55}\033[0m")
     for i, entry in enumerate(queue, 1):
-        px = ' \033[35m[PIXEL]\033[0m' if entry.get('pixel') else ''
-        print(f"  {i:2}. \033[36m{entry['video']}\033[0m  (mode={entry['mode']}{px} vol={entry['vol']})")
-    print(f"\033[1;37m{'═'*55}\033[0m\n")
+        px = " \033[35m[PIXEL]\033[0m" if entry.get("pixel") else ""
+        print(
+            f"  {i:2}. \033[36m{entry['video']}\033[0m  (mode={entry['mode']}{px} vol={entry['vol']})"
+        )
+    print(f"\033[1;37m{'═' * 55}\033[0m\n")
     print(f" \033[1;32m🚀 Server live →\033[0m \033[4;36mhttp://localhost:{args.port}\033[0m\n")
 
     # ── Run server in background thread, command loop in main thread ──
@@ -610,7 +662,12 @@ if __name__ == "__main__":
             "ws_ping_timeout": None,
             "log_level": "warning",
         },
-        daemon=True
+        daemon=True,
     )
+    if shutil.which("ffmpeg") is None:
+        print(
+            "[WARNING] ffmpeg not found on PATH — audio streaming (/audio) will fail at request time."
+        )
+
     server_thread.start()
     command_loop()

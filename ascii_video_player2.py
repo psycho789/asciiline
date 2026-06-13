@@ -1,6 +1,6 @@
 """
-ascii_video_player.py
-=====================
+ascii_video_player2.py
+======================
 Modular, True Color (24-bit ANSI), zero-flicker ASCII video player.
 
   - VideoDecoder    : Produces (gray, color) frame pairs from video.
@@ -11,12 +11,14 @@ Dependencies:
     pip install opencv-python numpy
 """
 
+import os
+import shutil
 import sys
 import time
-import shutil
-import numpy as np
+from typing import ClassVar
+
 import cv2
-import os
+import numpy as np
 
 # Enable ANSI color codes on PowerShell/CMD (Windows):
 os.system("")
@@ -39,12 +41,12 @@ class VideoDecoder:
         if not self._cap.isOpened():
             raise FileNotFoundError(f"Could not open video file: {path!r}")
 
-        self.fps         : float = self._cap.get(cv2.CAP_PROP_FPS) or 24.0
-        self.frame_count : int   = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.vid_w       : int   = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.vid_h       : int   = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self._size       : tuple = (cols, rows)
-        self._skip_gray  : bool  = skip_gray
+        self.fps: float = self._cap.get(cv2.CAP_PROP_FPS) or 24.0
+        self.frame_count: int = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.vid_w: int = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.vid_h: int = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self._size: tuple = (cols, rows)
+        self._skip_gray: bool = skip_gray
 
     def __iter__(self):
         return self
@@ -61,8 +63,8 @@ class VideoDecoder:
         small = cv2.resize(frame, self._size, interpolation=cv2.INTER_LINEAR)
         if self._skip_gray:
             return None, small
-        gray  = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-        return gray, small   # small = downscaled BGR frame
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        return gray, small  # small = downscaled BGR frame
 
     def release(self):
         self._cap.release()
@@ -101,7 +103,7 @@ class AsciiMapper:
       This provides a 40-60% reduction in string size for a typical frame.
     """
 
-    DEFAULT_PALETTE = list(
+    DEFAULT_PALETTE: ClassVar[list[str]] = list(
         " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@"
     )
 
@@ -116,9 +118,9 @@ class AsciiMapper:
                               0 -> full 8-bit (highest quality, default).
         """
         p = palette or self.DEFAULT_PALETTE
-        self._n   = len(p)
-        self._lut = np.array(p, dtype='U1')
-        self._qb  = quantize_bits           # quantization bit shift amount
+        self._n = len(p)
+        self._lut = np.array(p, dtype="U1")
+        self._qb = quantize_bits  # quantization bit shift amount
 
     def convert(self, gray: np.ndarray, bgr: np.ndarray) -> str:
         """
@@ -135,33 +137,35 @@ class AsciiMapper:
         # ── Step 1: Pixel intensity -> character index ──────────────────
         indices = np.floor_divide(gray, max(1, 256 // self._n))
         np.clip(indices, 0, self._n - 1, out=indices)
-        char_matrix = self._lut[indices]    # shape=(H,W), dtype='U1'
+        char_matrix = self._lut[indices]  # shape=(H,W), dtype='U1'
 
         # ── Step 2: Color quantization ────────────────────────────────────
         # BGR -> RGB order (ANSI code is in R,G,B order)
-        rgb = bgr[:, :, ::-1]              # BGR -> RGB view, no copy
+        rgb = bgr[:, :, ::-1]  # BGR -> RGB view, no copy
 
         if self._qb > 0:
             # Zero out the lower bits -> reduce color precision, increase speed
             qb = self._qb
-            rgb = (rgb >> qb) << qb        # e.g., qb=2: 0b11111100 masking
+            rgb = (rgb >> qb) << qb  # e.g., qb=2: 0b11111100 masking
 
         # ── Step 3: RLE and colored string construction ─────────────────────
         # Since RLE cannot be done with pure NumPy, this part uses a Python loop.
         # However, the escape code is only written when the color changes per row;
         # loop overhead is minimized for repeated colors.
         lines = []
-        prev_r = prev_g = prev_b = -1      # previous color (first pixel is always different)
+        prev_r = prev_g = prev_b = -1  # previous color (first pixel is always different)
 
         for row_idx in range(H):
-            row_chars  = char_matrix[row_idx]   # shape=(W,) char array
-            row_colors = rgb[row_idx]            # shape=(W,3) uint8 array
+            row_chars = char_matrix[row_idx]  # shape=(W,) char array
+            row_colors = rgb[row_idx]  # shape=(W,3) uint8 array
             buf = []
 
             for col_idx in range(W):
-                r, g, b = int(row_colors[col_idx, 0]), \
-                           int(row_colors[col_idx, 1]), \
-                           int(row_colors[col_idx, 2])
+                r, g, b = (
+                    int(row_colors[col_idx, 0]),
+                    int(row_colors[col_idx, 1]),
+                    int(row_colors[col_idx, 2]),
+                )
 
                 # RLE: only add a new escape code if the color changes
                 if r != prev_r or g != prev_g or b != prev_b:
@@ -189,23 +193,23 @@ class TerminalRenderer:
         -> prevents affecting subsequent terminal commands.
     """
 
-    _CURSOR_HOME   = "\033[H"
-    _HIDE_CURSOR   = "\033[?25l"
-    _SHOW_CURSOR   = "\033[?25h"
-    _DISABLE_WRAP  = "\033[?7l"    # prevent line wrapping
-    _ENABLE_WRAP   = "\033[?7h"    # restore line wrapping
-    _BLACK_BG      = "\033[40m"    # black background — for contrast
-    _RESET_ALL     = "\033[0m"
-    _CLEAR_SCREEN  = "\033[2J"
+    _CURSOR_HOME = "\033[H"
+    _HIDE_CURSOR = "\033[?25l"
+    _SHOW_CURSOR = "\033[?25h"
+    _DISABLE_WRAP = "\033[?7l"  # prevent line wrapping
+    _ENABLE_WRAP = "\033[?7h"  # restore line wrapping
+    _BLACK_BG = "\033[40m"  # black background — for contrast
+    _RESET_ALL = "\033[0m"
+    _CLEAR_SCREEN = "\033[2J"
 
-    CHAR_RATIO = 0.45              # terminal character aspect ratio correction
+    CHAR_RATIO = 0.45  # terminal character aspect ratio correction
 
     def __init__(
         self,
-        path         : str,
-        palette      : list[str] | None = None,
+        path: str,
+        palette: list[str] | None = None,
         quantize_bits: int = 0,
-        cols         : int = 0,
+        cols: int = 0,
     ) -> None:
         """
         :param path:          Path to video file
@@ -216,17 +220,17 @@ class TerminalRenderer:
         # ── Video metadata ────────────────────────────────────────────
         _probe = VideoDecoder(path, 2, 2)
         vid_w, vid_h = _probe.vid_w, _probe.vid_h
-        src_fps      = _probe.fps
+        src_fps = _probe.fps
         _probe.release()
 
         # ── Terminal dimensions ────────────────────────────────────────────
-        term    = shutil.get_terminal_size(fallback=(220, 50))
-        t_cols  = term.columns
+        term = shutil.get_terminal_size(fallback=(220, 50))
+        t_cols = term.columns
         t_lines = term.lines - 2
 
         # ── Orientation detection & aspect-ratio-preserving resizing ─────────────
         orientation = "portrait" if vid_h > vid_w else "landscape"
-        aspect      = vid_h / vid_w
+        aspect = vid_h / vid_w
 
         if cols > 0:
             # User provided a fixed column width
@@ -234,7 +238,7 @@ class TerminalRenderer:
         else:
             # Auto-fit to terminal size (with a safe maximum to prevent lag/wrapping)
             safe_cols = min(t_cols, 160)  # Windows terminal often struggles above 160 cols
-            
+
             if orientation == "landscape":
                 cols = safe_cols
                 rows = max(1, int(cols * aspect * self.CHAR_RATIO))
@@ -260,15 +264,15 @@ class TerminalRenderer:
             f"  Video       : {vid_w}x{vid_h}\n"
             f"  ASCII       : {cols}x{rows} characters\n"
             f"  FPS         : {src_fps:.1f}\n"
-            f"  Quantization: {2**(8-quantize_bits)} levels/channel\n"
+            f"  Quantization: {2 ** (8 - quantize_bits)} levels/channel\n"
             f"  Exit        : Ctrl+C\n"
         )
         time.sleep(2.0)
 
-        self._decoder       = VideoDecoder(path, cols, rows)
-        self._mapper        = AsciiMapper(palette, quantize_bits)
-        self._fps           = self._decoder.fps
-        self._frame_t       = 1.0 / self._fps
+        self._decoder = VideoDecoder(path, cols, rows)
+        self._mapper = AsciiMapper(palette, quantize_bits)
+        self._fps = self._decoder.fps
+        self._frame_t = 1.0 / self._fps
 
     def play(self) -> None:
         """Main playback loop."""
@@ -282,12 +286,12 @@ class TerminalRenderer:
                 t0 = time.perf_counter()
 
                 ascii_frame = self._mapper.convert(gray_frame, bgr_frame)
-                
+
                 # Apply padding for centering
                 if self._pad_x:
-                    ascii_frame = self._pad_x + ascii_frame.replace('\n', '\n' + self._pad_x)
+                    ascii_frame = self._pad_x + ascii_frame.replace("\n", "\n" + self._pad_x)
                 if self._pad_y > 0:
-                    ascii_frame = ('\n' * self._pad_y) + ascii_frame
+                    ascii_frame = ("\n" * self._pad_y) + ascii_frame
 
                 stdout.write(self._CURSOR_HOME + ascii_frame)
                 stdout.flush()
@@ -314,24 +318,33 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="True Color ANSI ASCII video player — zero flicker"
     )
-    parser.add_argument("video",
-        help="Path to video file (MP4, AVI, MKV ...)")
-    parser.add_argument("--palette", default=None,
-        help="Custom character palette, space-separated")
-    parser.add_argument("-q", "--quality", type=int, choices=[0, 1, 2, 3], default=0,
-        help="Color quality: 0=max quality, 3=max speed (default: 0)")
-    parser.add_argument("-c", "--cols", type=int, default=0,
-        help="Fixed grid width. If 0, auto-fits to terminal (default: 0)")
+    parser.add_argument("video", help="Path to video file (MP4, AVI, MKV ...)")
+    parser.add_argument("--palette", default=None, help="Custom character palette, space-separated")
+    parser.add_argument(
+        "-q",
+        "--quality",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=0,
+        help="Color quality: 0=max quality, 3=max speed (default: 0)",
+    )
+    parser.add_argument(
+        "-c",
+        "--cols",
+        type=int,
+        default=0,
+        help="Fixed grid width. If 0, auto-fits to terminal (default: 0)",
+    )
     args = parser.parse_args()
 
     custom_palette = args.palette.split() if args.palette else None
 
     try:
         renderer = TerminalRenderer(
-            path          = args.video,
-            palette       = custom_palette,
-            quantize_bits = args.quality,
-            cols          = args.cols,
+            path=args.video,
+            palette=custom_palette,
+            quantize_bits=args.quality,
+            cols=args.cols,
         )
         renderer.play()
     except FileNotFoundError as e:
