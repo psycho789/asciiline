@@ -30,8 +30,6 @@
 
             <div class="video-wrapper">
                 <div class="player-deck">
-                    <div id="status" class="status" role="status" aria-live="polite">System Ready</div>
-
                     <div id="player-container" class="fx-clean">
                         <pre id="ascii-player" aria-hidden="true"></pre>
                         <canvas id="ascii-canvas" aria-hidden="true"></canvas>
@@ -46,48 +44,46 @@
                     </div>
 
                     <div class="control-deck">
-                        <div class="control-row">
-                            <div class="ctrl-group">
-                                <span class="ctrl-label" id="mode-label">Mode</span>
-                                <div class="mode-toggle" role="group" aria-labelledby="mode-label">
-                                    <button type="button" id="mode-ascii" class="mode-btn active" aria-pressed="true"
-                                        title="Character grid — required for LOOK presets">ASCII</button>
-                                    <button type="button" id="mode-pixel" class="mode-btn" aria-pressed="false"
-                                        title="Colored blocks, higher fidelity">PIXEL</button>
-                                </div>
+
+                        <!-- Single compact bar: mode + track + vol + status + copy -->
+                        <div class="ctrl-bar">
+                            <div class="mode-toggle" role="group" aria-label="Render mode">
+                                <button type="button" id="mode-ascii" class="mode-btn active" aria-pressed="true"
+                                    title="Character grid">ASCII</button>
+                                <button type="button" id="mode-pixel" class="mode-btn" aria-pressed="false"
+                                    title="Colored blocks, higher fidelity">PIXEL</button>
                             </div>
-                            <div class="ctrl-group ctrl-group-actions">
-                                <button type="button" id="copy-frame-btn" class="ctrl-btn" disabled
-                                    title="Copy the current ASCII frame to clipboard">
-                                    Copy frame
-                                </button>
+
+                            <div class="ctrl-bar-track" id="ctrl-bar-track">
+                                <button type="button" id="track-prev" class="track-nav-btn" title="Previous">&#8592;</button>
+                                <span id="track-label" class="track-label"></span>
+                                <button type="button" id="track-next" class="track-nav-btn" title="Next">&#8594;</button>
                             </div>
-                            <div class="ctrl-group ctrl-group-volume">
-                                <label class="ctrl-label" for="volume-slider">Volume</label>
+
+                            <div class="ctrl-bar-vol">
+                                <label class="ctrl-bar-label" for="volume-slider">VOL</label>
                                 <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1"
-                                    aria-valuemin="0" aria-valuemax="1">
+                                    aria-label="Volume">
                             </div>
+
+                            <button type="button" id="copy-frame-btn" class="ctrl-bar-btn" disabled
+                                title="Copy ASCII frame to clipboard">Copy</button>
+
+                            <div id="status" class="status" role="status" aria-live="polite">Ready</div>
                         </div>
 
-                        <div class="control-row control-row-track">
-                            <span class="ctrl-label">Track</span>
-                            <button type="button" id="track-prev" class="ctrl-btn track-btn" title="Previous video">&#8592;</button>
-                            <span id="track-label" class="track-label"></span>
-                            <button type="button" id="track-next" class="ctrl-btn track-btn" title="Next video">&#8594;</button>
+                        <!-- FX grid — wraps naturally, no scroll, all always visible -->
+                        <div class="fx-grid-wrap">
+                            <div id="fx-picker" class="fx-grid" role="listbox" aria-label="Visual effects"
+                                aria-describedby="fx-hint"></div>
                         </div>
 
-                        <div class="control-row control-row-look">
-                            <span class="ctrl-label" id="look-label">Look</span>
-                            <div class="fx-picker-wrap">
-                                <div id="fx-picker" class="fx-picker" role="listbox" aria-labelledby="look-label"
-                                    aria-describedby="fx-hint"></div>
-                            </div>
-                        </div>
-
+                        <!-- Active effect description -->
                         <div id="fx-hint" class="fx-hint" role="note">
                             <span class="fx-hint-label">CLEAN</span>
-                            <span class="fx-hint-text">Standard ASCII render — no effects applied.</span>
+                            <span class="fx-hint-text">Standard render — no effects applied.</span>
                         </div>
+
                     </div>
                 </div>
 

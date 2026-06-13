@@ -264,232 +264,189 @@ body {
 .control-deck {
     background: var(--deck-bg);
     border: 1px solid var(--deck-border);
+    border-top: none;
     border-radius: 0 0 8px 8px;
-    padding: 12px 14px 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-}
-
-.control-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.control-row-look {
-    align-items: flex-start;
-}
-
-.control-row-track {
-    gap: 6px;
-    align-items: center;
-}
-
-.track-label {
-    font-size: 11px;
-    font-family: 'IBM Plex Mono', 'Courier New', monospace;
-    color: rgba(255, 255, 255, 0.7);
-    letter-spacing: 0.5px;
-    flex: 1;
-    text-overflow: ellipsis;
+    gap: 0;
     overflow: hidden;
-    white-space: nowrap;
 }
 
-.track-btn {
-    padding: 2px 8px;
-    min-width: 28px;
-    font-size: 13px;
-}
-
-.control-row-track[hidden] {
-    display: none;
-}
-
-.ctrl-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: var(--muted);
-    flex-shrink: 0;
-    min-width: 48px;
-}
-
-.ctrl-group {
+/* ── CTRL BAR (top strip: mode / track / vol / copy / status) */
+.ctrl-bar {
     display: flex;
     align-items: center;
-    gap: 8px;
-}
-
-.ctrl-group-volume {
-    margin-left: auto;
-    flex: 1;
-    min-width: 140px;
-    max-width: 200px;
-}
-
-.ctrl-group-volume .ctrl-label {
-    min-width: auto;
-}
-
-#volume-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    flex: 1;
-    height: 4px;
-    background: #444;
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-}
-
-#volume-slider:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 4px;
-}
-
-#volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    background: var(--accent-color);
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-#volume-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    background: var(--accent-color);
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--deck-border);
+    flex-wrap: wrap;
 }
 
 .mode-toggle {
     display: flex;
-    border: 1px solid #444;
+    border: 1px solid #3a3a44;
     border-radius: 6px;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .mode-btn {
     background: transparent;
     border: none;
-    color: #888;
+    color: #666;
     font-family: inherit;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    padding: 7px 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    padding: 5px 11px;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 }
 
-.mode-btn:hover {
-    color: #ccc;
-    background: rgba(255, 255, 255, 0.04);
-}
+.mode-btn:hover { color: #bbb; background: rgba(255,255,255,0.04); }
+.mode-btn:focus-visible { outline: 2px solid var(--accent-color); outline-offset: -2px; z-index: 1; }
+.mode-btn.active { background: var(--accent-color); color: #050505; }
 
-.mode-btn:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: -2px;
-    z-index: 1;
-}
-
-.mode-btn.active {
-    background: var(--accent-color);
-    color: #050505;
-}
-
-.ctrl-btn {
-    background: transparent;
-    border: 1px solid #444;
-    border-radius: 6px;
-    color: #aaa;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    padding: 7px 14px;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-    white-space: nowrap;
-}
-
-.ctrl-btn:hover:not(:disabled) {
-    color: #eee;
-    border-color: #666;
-}
-
-.ctrl-btn:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 2px;
-}
-
-.ctrl-btn:active:not(:disabled) {
-    background: var(--accent-color);
-    color: #050505;
-    border-color: var(--accent-color);
-}
-
-.ctrl-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-/* ── FX PICKER ───────────────────────── */
-.fx-picker-wrap {
-    flex: 1;
-    min-width: 0;
-    position: relative;
-    mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-}
-
-.fx-picker {
+/* track nav */
+.ctrl-bar-track {
     display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding: 2px 12px 6px;
-    scrollbar-width: thin;
-    scrollbar-color: #444 transparent;
-    -webkit-overflow-scrolling: touch;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
 }
+.ctrl-bar-track[hidden] { display: none; }
 
-.fx-picker::-webkit-scrollbar {
-    height: 4px;
-}
-
-.fx-picker::-webkit-scrollbar-thumb {
-    background: #444;
-    border-radius: 2px;
-}
-
-.fx-chip {
-    position: relative;
-    background: rgba(255, 255, 255, 0.03);
+.track-nav-btn {
+    background: transparent;
     border: 1px solid #3a3a44;
-    border-radius: 6px;
-    color: #9a9aa8;
+    border-radius: 4px;
+    color: #777;
+    font-size: 13px;
+    line-height: 1;
+    padding: 3px 7px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.track-nav-btn:hover { color: #ccc; border-color: #555; }
+.track-nav-btn:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+
+.track-label {
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    color: #777;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* volume */
+.ctrl-bar-vol {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.ctrl-bar-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #555;
+    text-transform: uppercase;
+}
+
+#volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 80px;
+    height: 3px;
+    background: #333;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+#volume-slider:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 4px; }
+#volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px;
+    background: var(--accent-color); border-radius: 50%; cursor: pointer;
+}
+#volume-slider::-moz-range-thumb {
+    width: 12px; height: 12px;
+    background: var(--accent-color); border-radius: 50%; border: none; cursor: pointer;
+}
+
+/* copy button */
+.ctrl-bar-btn {
+    background: transparent;
+    border: 1px solid #3a3a44;
+    border-radius: 5px;
+    color: #666;
     font-family: inherit;
     font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.6px;
-    padding: 6px 10px;
+    letter-spacing: 0.5px;
+    padding: 4px 10px;
     cursor: pointer;
     white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
     flex-shrink: 0;
-    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+.ctrl-bar-btn:hover:not(:disabled) { color: #ddd; border-color: #555; }
+.ctrl-bar-btn:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.ctrl-bar-btn:active:not(:disabled) { background: var(--accent-color); color: #050505; border-color: var(--accent-color); }
+.ctrl-bar-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+
+/* status pushed to right */
+.status {
+    margin-left: auto;
+    font-size: 10px;
+    color: #444;
+    font-family: var(--font-tech);
+    letter-spacing: 1px;
+    white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+}
+
+/* ── FX GRID ─────────────────────────── */
+.fx-grid-wrap {
+    padding: 10px 10px 6px;
+    border-bottom: 1px solid var(--deck-border);
+}
+
+.fx-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    gap: 5px;
+}
+
+/* Each chip is a 2-line button */
+.fx-chip {
+    position: relative;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid #2e2e38;
+    border-radius: 7px;
+    color: #9a9aa8;
+    font-family: inherit;
+    text-align: left;
+    padding: 8px 10px 7px;
+    cursor: pointer;
+    transition: background 0.13s, border-color 0.13s, color 0.13s;
+    min-height: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
 
 .fx-chip:hover {
-    color: #e8e8ee;
-    border-color: #5a5a66;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: #4a4a58;
+    color: #e0e0ee;
 }
 
 .fx-chip:focus-visible {
@@ -499,65 +456,89 @@ body {
 
 .fx-chip.active {
     background: var(--accent-secondary);
-    color: #050505;
     border-color: var(--accent-secondary);
+    color: #050505;
 }
 
-.fx-chip.fx-chip-disabled,
-.fx-chip:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-    pointer-events: none;
+.fx-chip-name {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    line-height: 1;
 }
 
-.fx-chip[data-interactive="true"].active::after {
-    content: '●';
-    font-size: 6px;
-    margin-left: 4px;
-    vertical-align: middle;
-    opacity: 0.7;
-}
-
-/* CSS tooltip on hover/focus */
-.fx-chip::before {
-    content: attr(data-tip);
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    background: #1e1e26;
-    color: #ddd;
-    font-size: 11px;
-    font-weight: 400;
+.fx-chip-tip {
+    display: block;
+    font-size: 10px;
+    font-weight: 300;
     letter-spacing: 0;
     text-transform: none;
-    line-height: 1.35;
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid #3a3a44;
+    color: #666;
+    line-height: 1.3;
     white-space: normal;
-    width: max-content;
-    max-width: 220px;
-    text-align: center;
-    pointer-events: none;
+}
+
+.fx-chip.active .fx-chip-tip {
+    color: rgba(5, 5, 5, 0.65);
+}
+
+/* ASCII-only badge — shown in pixel mode */
+.fx-chip-badge {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--accent-color);
     opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
-    z-index: 20;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    transition: opacity 0.15s;
+    pointer-events: none;
 }
 
-.fx-chip:hover::before,
-.fx-chip:focus-visible::before {
+.fx-chip[data-ascii-only="true"] .fx-chip-badge {
     opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .fx-chip::before {
-        transition: none;
-    }
+.fx-chip[data-ascii-only="true"] {
+    border-style: dashed;
+}
+
+.fx-chip[data-ascii-only="true"]:hover {
+    border-style: solid;
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.fx-chip[data-ascii-only="true"]:hover .fx-chip-tip::after {
+    content: ' — switches to ASCII';
+    color: rgba(0, 243, 255, 0.6);
+    font-size: 9px;
+}
+
+/* Animated active dot for interactive presets */
+.fx-chip[data-interactive="true"].active .fx-chip-name::after {
+    content: ' ●';
+    font-size: 6px;
+    vertical-align: middle;
+    opacity: 0.8;
+    animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 0.3; }
+}
+
+/* STORM chip pulses red when active */
+.fx-chip[data-fx="auto-ripple"].active {
+    animation: storm-pulse 1.8s ease-in-out infinite;
+}
+@keyframes storm-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 80, 80, 0); }
+    50% { box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.3); }
 }
 
 /* ── FX HINT BAR ─────────────────────── */
@@ -565,35 +546,33 @@ body {
     display: flex;
     align-items: baseline;
     gap: 10px;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.35);
-    border-radius: 6px;
-    border: 1px solid #2a2a32;
-    min-height: 42px;
+    padding: 9px 12px 10px;
 }
 
 .fx-hint-label {
     font-family: var(--font-tech);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--accent-secondary);
-    letter-spacing: 1px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
     flex-shrink: 0;
 }
 
 .fx-hint-text {
-    font-size: 13px;
-    color: #b0b0bc;
-    line-height: 1.45;
+    font-size: 12px;
+    color: #686878;
+    line-height: 1.4;
     font-weight: 300;
 }
 
 .fx-hint-action {
-    display: block;
-    margin-top: 4px;
+    display: inline;
+    margin-left: 6px;
     font-size: 11px;
     color: var(--accent-color);
     font-weight: 400;
+    opacity: 0.8;
 }
 
 /* ── FX OVERLAY ──────────────────────── */
@@ -679,18 +658,30 @@ body {
 }
 
 @media (max-width: 640px) {
-    .ctrl-group-volume {
-        margin-left: 0;
-        max-width: none;
-        width: 100%;
+    .fx-grid {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    }
+
+    .ctrl-bar {
+        gap: 7px;
+    }
+
+    .track-label {
+        max-width: 100px;
+    }
+
+    #volume-slider {
+        width: 60px;
     }
 
     .fx-hint {
         flex-direction: column;
-        gap: 4px;
+        gap: 3px;
     }
+}
 
-    .fx-chip::before {
-        display: none;
+@media (max-width: 420px) {
+    .fx-grid {
+        grid-template-columns: repeat(3, 1fr);
     }
 }

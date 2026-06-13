@@ -396,12 +396,12 @@ function updateFxPickerUI() {
         const id = btn.dataset.fx;
         const preset = FX_PRESETS[id];
         const on = id === activeFx;
-        const disabled = pixelMode && preset?.asciiOnly && !preset?.pixelOk;
+        const asciiOnly = pixelMode && preset?.asciiOnly && !preset?.pixelOk;
         btn.classList.toggle('active', on);
-        btn.classList.toggle('fx-chip-disabled', disabled);
-        btn.disabled = disabled;
+        btn.disabled = false;
+        btn.dataset.asciiOnly = asciiOnly ? 'true' : 'false';
         btn.setAttribute('aria-selected', String(on));
-        btn.setAttribute('aria-disabled', String(disabled));
+        btn.setAttribute('aria-pressed', String(on));
         btn.tabIndex = on ? 0 : -1;
     });
     updateFxHint();
@@ -415,13 +415,37 @@ function buildFxPicker() {
         btn.type = 'button';
         btn.className = 'fx-chip';
         btn.dataset.fx = id;
-        btn.textContent = preset.label;
-        btn.dataset.tip = preset.tip;
         if (preset.interactive) btn.dataset.interactive = 'true';
         btn.setAttribute('role', 'option');
         btn.setAttribute('aria-describedby', 'fx-hint');
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'fx-chip-name';
+        nameEl.textContent = preset.label;
+
+        const tipEl = document.createElement('span');
+        tipEl.className = 'fx-chip-tip';
+        tipEl.textContent = preset.tip;
+
+        const badgeEl = document.createElement('span');
+        badgeEl.className = 'fx-chip-badge';
+        badgeEl.textContent = 'ASCII';
+        badgeEl.title = 'ASCII mode only — click to switch and apply';
+
+        btn.appendChild(nameEl);
+        btn.appendChild(tipEl);
+        btn.appendChild(badgeEl);
+
         btn.addEventListener('click', () => {
-            applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' });
+            const isAsciiOnly = preset.asciiOnly && !preset.pixelOk;
+            if (pixelMode && isAsciiOnly) {
+                // Auto-switch to ASCII mode, then apply effect
+                setPreferPixel(false, { reconnect: state === 'PLAYING' });
+                // Wait one tick for mode switch to settle before applying fx
+                setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
+            } else {
+                applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' });
+            }
         });
         fxPicker.appendChild(btn);
     }
@@ -915,7 +939,7 @@ function advancePlaylist() {
 }
 
 function updateTrackLabel() {
-    const row = document.querySelector('.control-row-track');
+    const row = document.getElementById('ctrl-bar-track');
     const el = document.getElementById('track-label');
     if (!siteConfig?.playlist || siteConfig.playlist.length <= 1) {
         if (row) row.hidden = true;
@@ -926,7 +950,7 @@ function updateTrackLabel() {
     const total = siteConfig.playlist.length;
     const src = currentPlaylistEntry()?.src || '';
     const name = src.replace(/^.*\//, '').replace(/\.mp4$/i, '');
-    el.textContent = `${playlistIndex + 1} / ${total} — ${name}`;
+    el.textContent = `${playlistIndex + 1}/${total} · ${name}`;
 }
 
 function currentRenderPrefs() {
