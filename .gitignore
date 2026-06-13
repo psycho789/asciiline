@@ -15,6 +15,18 @@ __pycache__/
 .env
 .vscode/
 .idea/
+.cursor/
+.DS_Store
+
+# Node
+node_modules/
+
+# Python packaging
+*.egg-info/
+
+# Dev daemon runtime
+.server.log
+.server.pid
 
 # Personal notes
 mynotes.txt
