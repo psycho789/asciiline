@@ -179,6 +179,27 @@ const FX_PRESETS = {
         asciiOnly: true,
         interactive: true,
     },
+    hole: {
+        label: 'HOLE',
+        tip: 'Singularity tears space',
+        hint: 'A singularity drifts through the grid, warping characters into the accretion disk and devouring them at the event horizon.',
+        css: 'fx-hole',
+        asciiOnly: true,
+    },
+    rend: {
+        label: 'REND',
+        tip: 'Reality tears apart',
+        hint: 'The frame rips along a random fracture — both halves drift apart, exposing the void between them, then it heals and tears again.',
+        css: 'fx-rend',
+        asciiOnly: true,
+    },
+    melt: {
+        label: 'MELT',
+        tip: 'Columns drip downward',
+        hint: 'Each column drips at a different speed — the image slowly runs and pools like paint, then cycles.',
+        css: 'fx-melt',
+        asciiOnly: true,
+    },
 };
 
 const CHAR_LUT = new Array(256);
@@ -227,6 +248,19 @@ let ripples = [];
 let autoRipplePendingFires = [];
 let autoRippleNextAt = 0;
 let autoRipplePatternCursor = 0;
+
+// HOLE state
+let holeX = 0, holeY = 0, holePulse = 0;
+
+// REND state
+let rendOffset = 0, rendAngle = 0, rendCenterX = 0, rendCenterY = 0;
+let rendPhase = 0, rendPhaseStart = 0;
+
+// MELT state
+let meltStartTime = 0;
+let meltColSpeeds = null;
+let meltColPhase = null;
+
 let audioCtx = null;
 let analyser = null;
 let audioSource = null;
@@ -297,6 +331,9 @@ function applyFx(id, { cycleFont = false } = {}) {
     updateFxPickerUI();
 
     if (id === 'resonate' && state === 'PLAYING') initAudioAnalyser();
+    if (id === 'hole') initHole();
+    if (id === 'rend') initRend();
+    if (id === 'melt') initMelt();
 
     if (id === 'font-morph' && state === 'PLAYING' && !pixelMode && gridCols > 0) {
         buildCanvas(gridCols, gridRows);
@@ -674,7 +711,10 @@ function shouldUseInterlaceHold(row) {
 }
 
 function resolveCell(data, row, col, now) {
-    const i = (row * gridCols + col) * 4;
+    const { srcCol, srcRow, override, edgeHeat } = distortCell(col, row);
+    if (override) return override;
+
+    const i = (srcRow * gridCols + srcCol) * 4;
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
@@ -694,12 +734,45 @@ function resolveCell(data, row, col, now) {
             const colReveal = getTypewriterCol(now);
             updateTypewriterCursor(colReveal);
             if (col > colReveal) {
-                charCode = prevChars[cellIdx] > 0 ? prevChars[cellIdx] : 46; // .
+                charCode = prevChars[cellIdx] > 0 ? prevChars[cellIdx] : 46;
             }
         }
 
         cellHold[cellIdx] = charCode;
         prevChars[cellIdx] = charCode;
+    }
+
+    // HOLE accretion disk — heat chars near the event horizon
+    if (effectiveFx() === 'hole') {
+        const dx = col - holeX;
+        const dy = (row - holeY) * 1.8;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const HORIZON = 2.1 + holePulse * 1.3;
+        const heatEnd = HORIZON * 4.5;
+        if (dist < heatEnd) {
+            const heat = Math.max(0, 1 - (dist - HORIZON) / (heatEnd - HORIZON));
+            const hotChar = heat > 0.55
+                ? BLOCK_CHAR
+                : PALETTE.charCodeAt(Math.floor(PALETTE_LEN * (0.5 + heat * 0.5)));
+            return {
+                charCode: hotChar,
+                r: Math.min(255, r + Math.round(heat * 220)),
+                g: Math.min(255, g * (1 - heat * 0.78) + Math.round(heat * 32)),
+                b: Math.min(255, b * (1 - heat * 0.92)),
+                gray,
+            };
+        }
+    }
+
+    // REND tear-edge glow
+    if (edgeHeat) {
+        return {
+            charCode: PALETTE.charCodeAt(Math.floor(PALETTE_LEN * (0.65 + edgeHeat * 0.35))),
+            r: Math.min(255, r + Math.round(edgeHeat * 100)),
+            g: Math.min(255, g + Math.round(edgeHeat * 35)),
+            b: Math.min(255, b + Math.round(edgeHeat * 90)),
+            gray,
+        };
     }
 
     return { charCode, r, g, b, gray };
@@ -1090,6 +1163,146 @@ function renderPixelFrame(now) {
     applyPostFx();
 }
 
+// ── DISTORTION EFFECTS ────────────────────────────────────
+
+function initHole() {
+    holeX = gridCols * 0.5;
+    holeY = gridRows * 0.5;
+    holePulse = 0;
+}
+
+function tickHole(now) {
+    if (effectiveFx() !== 'hole') return;
+    const t = now * 0.001;
+    holeX = gridCols * (0.5 + Math.sin(t * 0.19) * 0.27);
+    holeY = gridRows * (0.5 + Math.cos(t * 0.13) * 0.27);
+    holePulse = 0.5 + Math.sin(t * 0.37) * 0.5;
+}
+
+function initRend() {
+    rendAngle = Math.random() * Math.PI;
+    rendCenterX = gridCols * (0.25 + Math.random() * 0.5);
+    rendCenterY = gridRows * (0.25 + Math.random() * 0.5);
+    rendOffset = 0;
+    rendPhase = 0;
+    rendPhaseStart = performance.now();
+}
+
+function tickRend(now) {
+    if (effectiveFx() !== 'rend') return;
+    const age = (now - rendPhaseStart) * 0.001;
+    if (rendPhase === 0) {
+        rendOffset = Math.min(gridCols * 0.2, age * gridCols * 0.065);
+        if (age > 3.2) { rendPhase = 1; rendPhaseStart = now; }
+    } else if (rendPhase === 1) {
+        if (age > 2.2) { rendPhase = 2; rendPhaseStart = now; }
+    } else {
+        rendOffset = Math.max(0, rendOffset * (1 - age * 0.6));
+        if (rendOffset < 0.3) {
+            rendAngle = Math.random() * Math.PI;
+            rendCenterX = gridCols * (0.2 + Math.random() * 0.6);
+            rendCenterY = gridRows * (0.2 + Math.random() * 0.6);
+            rendOffset = 0;
+            rendPhase = 0;
+            rendPhaseStart = now;
+        }
+    }
+}
+
+function initMelt() {
+    meltStartTime = performance.now();
+    if (!gridCols) return;
+    meltColSpeeds = new Float32Array(gridCols);
+    meltColPhase = new Float32Array(gridCols);
+    for (let c = 0; c < gridCols; c++) {
+        meltColSpeeds[c] = 0.006 + Math.random() * 0.022;
+        meltColPhase[c] = Math.random() * gridRows;
+    }
+}
+
+// Returns { srcCol, srcRow, override } — override is non-null to short-circuit resolveCell
+function distortCell(col, row) {
+    const fx = effectiveFx();
+
+    if (fx === 'hole') {
+        const dx = col - holeX;
+        const dy = (row - holeY) * 1.8;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const HORIZON = 2.1 + holePulse * 1.3;
+        const STRENGTH = 2.0 + holePulse * 3.8;
+
+        if (dist < HORIZON) {
+            const edge = dist / HORIZON;
+            return {
+                srcCol: col, srcRow: row,
+                override: {
+                    charCode: edge > 0.6 ? BLOCK_CHAR : 32,
+                    r: Math.round(edge * 170 * (0.35 + holePulse * 0.65)),
+                    g: Math.round(edge * 18),
+                    b: Math.round(edge * 55),
+                    gray: 0,
+                },
+            };
+        }
+
+        const pull = Math.min(0.97, STRENGTH / (dist * 1.15));
+        const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + (holeX - col) * pull)));
+        const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + (holeY - row) * pull)));
+        return { srcCol, srcRow, override: null };
+    }
+
+    if (fx === 'rend') {
+        const tearDirX = Math.cos(rendAngle);
+        const tearDirY = Math.sin(rendAngle);
+        const perpX = Math.sin(rendAngle);
+        const perpY = -Math.cos(rendAngle);
+        const relC = col - rendCenterX;
+        const relR = row - rendCenterY;
+        const distToTear = Math.abs(relC * tearDirY - relR * tearDirX);
+        const voidHalf = rendOffset * 0.32;
+        const edgeHalf = rendOffset * 0.58;
+
+        if (distToTear < voidHalf && rendOffset > 0.4) {
+            const isEdge = distToTear > voidHalf * 0.55;
+            return {
+                srcCol: col, srcRow: row,
+                override: { charCode: isEdge ? BLOCK_CHAR : 32, r: isEdge ? 55 : 5, g: isEdge ? 20 : 5, b: isEdge ? 80 : 5, gray: 5 },
+            };
+        }
+
+        if (distToTear < edgeHalf && rendOffset > 0.4) {
+            const heat = (edgeHalf - distToTear) / (edgeHalf - voidHalf);
+            const side = (relC * perpX + relR * perpY) > 0 ? 1 : -1;
+            const shift = rendOffset * 0.5 * side;
+            const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + perpX * shift)));
+            const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + perpY * shift)));
+            return {
+                srcCol, srcRow,
+                override: null,
+                edgeHeat: heat,
+            };
+        }
+
+        const side = (relC * perpX + relR * perpY) > 0 ? 1 : -1;
+        const shift = rendOffset * 0.5 * side;
+        const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + perpX * shift)));
+        const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + perpY * shift)));
+        return { srcCol, srcRow, override: null };
+    }
+
+    if (fx === 'melt' && meltColSpeeds && col < meltColSpeeds.length) {
+        const elapsed = performance.now() - meltStartTime;
+        const drift = meltColSpeeds[col] * elapsed + meltColPhase[col];
+        const driftRow = Math.floor(drift);
+        const wobble = Math.sin((row * 0.28 + drift * 0.08) * Math.PI) * 1.8;
+        const srcRow = ((row - driftRow) % gridRows + gridRows) % gridRows;
+        const srcCol = Math.max(0, Math.min(gridCols - 1, Math.round(col + wobble)));
+        return { srcCol, srcRow, override: null };
+    }
+
+    return { srcCol: col, srcRow: row, override: null };
+}
+
 function processFrame(now) {
     if (state !== 'PLAYING' || video.paused || video.ended) return;
 
@@ -1097,6 +1310,8 @@ function processFrame(now) {
     updateAudioEnergy();
     updateCorrupt(now);
     tickAutoRipple(now);
+    tickHole(now);
+    tickRend(now);
 
     if (pixelMode) {
         renderPixelFrame(now);
@@ -1205,6 +1420,9 @@ async function startStream() {
         await video.play();
         state = 'PLAYING';
         if (effectiveFx() === 'resonate') initAudioAnalyser();
+        if (effectiveFx() === 'hole') initHole();
+        if (effectiveFx() === 'rend') initRend();
+        if (effectiveFx() === 'melt') initMelt();
         if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
         startFrameLoop();
     } catch (err) {
@@ -1249,6 +1467,9 @@ async function restartWithMode() {
             await video.play();
             state = 'PLAYING';
             if (effectiveFx() === 'resonate') initAudioAnalyser();
+            if (effectiveFx() === 'hole') initHole();
+            if (effectiveFx() === 'rend') initRend();
+            if (effectiveFx() === 'melt') initMelt();
             startFrameLoop();
         } else {
             state = 'IDLE';

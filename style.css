@@ -160,6 +160,34 @@ body {
     cursor: crosshair;
 }
 
+/* HOLE — dark radial vignette that pulses inward */
+#player-container.fx-hole #ascii-canvas {
+    filter: brightness(0.92) saturate(1.15);
+}
+#player-container.fx-hole::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 30% 40% at 50% 50%, transparent 40%, rgba(5, 0, 12, 0.55) 100%);
+    pointer-events: none;
+    z-index: 10;
+    animation: hole-breathe 3.2s ease-in-out infinite;
+}
+@keyframes hole-breathe {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+/* REND — subtle chromatic crack on the container */
+#player-container.fx-rend #ascii-canvas {
+    filter: contrast(1.08) brightness(0.95);
+}
+
+/* MELT — warm desaturated drip feel */
+#player-container.fx-melt #ascii-canvas {
+    filter: saturate(0.85) brightness(0.92) sepia(0.12);
+}
+
 #ascii-canvas {
     position: absolute;
     top: 0;
