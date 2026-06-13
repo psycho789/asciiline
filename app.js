@@ -266,7 +266,13 @@ const FX_PRESETS = {
         controls: [
             { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 18.0, step: 0.1, def: 3.0 },
             { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 6.0, step: 0.1, def: 1.4 },
-            { id: 'wave-burst',    label: 'Beat burst',    min: 0.0, max: 1.0, step: 0.05, def: 0.35 },
+            { id: 'wave-burst',    label: 'Beat burst',    min: 0.0, max: 1.0, step: 0.05, def: 0.45 },
+        ],
+        advancedControls: [
+            { id: 'wave-bass-drive', label: 'Sub bass hit', min: 0.0, max: 1.0, step: 0.05, def: 0.75 },
+            { id: 'wave-bounce',     label: 'Bounce hang',  min: 0.0, max: 1.0, step: 0.05, def: 0.6 },
+            { id: 'audio-bass-eq',   label: 'Bass EQ',      min: -12, max: 12, step: 1, def: 4, unit: 'dB' },
+            { id: 'audio-treble-eq', label: 'Treble EQ',    min: -12, max: 12, step: 1, def: 0, unit: 'dB' },
         ],
         css: 'fx-soundwave fx-ripple',
         asciiOnly: true,
@@ -739,8 +745,9 @@ function togglePlayback() {
 const fxParams = {};
 const CONTROL_DEFS = {};
 for (const preset of Object.values(FX_PRESETS)) {
-    if (preset.controls) {
-        for (const ctrl of preset.controls) {
+    for (const list of [preset.controls, preset.advancedControls]) {
+        if (!list) continue;
+        for (const ctrl of list) {
             fxParams[ctrl.id] = ctrl.def;
             CONTROL_DEFS[ctrl.id] = ctrl;
         }
@@ -853,9 +860,12 @@ let decayBuffer = null;
 let audioCtx = null;
 let analyser = null;
 let audioSource = null;
+let bassFilter = null;
+let trebleFilter = null;
 let audioEnergy = 0;    // bass energy 0-1 (backward compat)
 let audioRms = 0;       // RMS volume 0-1
 let audioBass = 0;      // low-freq energy 0-1
+let audioSubBass = 0;   // sub/low kick band 0-1
 let audioFreqData = null;  // Uint8Array frequency bins
 let audioWaveform = null;  // Uint8Array time-domain samples
 let audioBeat = false;     // true this frame if beat detected
@@ -953,6 +963,56 @@ function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
     buildFxPanel(activeFx);
 }
 
+function formatFxCtrlValue(ctrl, raw) {
+    const n = parseFloat(raw);
+    if (ctrl.unit === 'dB') {
+        const sign = n > 0 ? '+' : '';
+        return `${sign}${n} dB`;
+    }
+    return raw;
+}
+
+function appendFxControlRow(ctrl, container, { compact = false } = {}) {
+    const row = document.createElement('div');
+    row.className = 'fx-ctrl-row' + (compact ? ' fx-ctrl-row-compact' : '');
+
+    const lbl = document.createElement('label');
+    lbl.className = 'fx-ctrl-label';
+    lbl.textContent = ctrl.label;
+    lbl.setAttribute('for', `fx-ctrl-${ctrl.id}`);
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.id = `fx-ctrl-${ctrl.id}`;
+    slider.className = 'fx-ctrl-range';
+    slider.min = String(ctrl.min);
+    slider.max = String(ctrl.max);
+    slider.step = String(ctrl.step);
+    slider.value = String(fxParams[ctrl.id] ?? ctrl.def);
+    slider.setAttribute('aria-label', ctrl.label);
+
+    const valDisplay = document.createElement('output');
+    valDisplay.className = 'fx-ctrl-val';
+    valDisplay.setAttribute('for', `fx-ctrl-${ctrl.id}`);
+    valDisplay.textContent = formatFxCtrlValue(ctrl, slider.value);
+
+    slider.addEventListener('input', () => {
+        fxParams[ctrl.id] = parseFloat(slider.value);
+        valDisplay.textContent = formatFxCtrlValue(ctrl, slider.value);
+        if (ctrl.id === 'corrupt-intensity' || ctrl.id === 'corrupt-size') {
+            nextCorruptAt = 0;
+        }
+        if (ctrl.id === 'audio-bass-eq' || ctrl.id === 'audio-treble-eq') {
+            updateAudioEq();
+        }
+    });
+
+    row.appendChild(lbl);
+    row.appendChild(slider);
+    row.appendChild(valDisplay);
+    container.appendChild(row);
+}
+
 function buildFxPanel(id) {
     if (!fxPanelEl) return;
     const preset = FX_PRESETS[id] || FX_PRESETS.clean;
@@ -1043,47 +1103,25 @@ function buildFxPanel(id) {
     }
 
     if (preset.controls) {
-        preset.controls.forEach((ctrl) => {
-            const row = document.createElement('div');
-            row.className = 'fx-ctrl-row';
+        preset.controls.forEach((ctrl) => appendFxControlRow(ctrl, fxPanelControls));
+    }
 
-            const lbl = document.createElement('label');
-            lbl.className = 'fx-ctrl-label';
-            lbl.textContent = ctrl.label;
-            lbl.setAttribute('for', `fx-ctrl-${ctrl.id}`);
-
-            const slider = document.createElement('input');
-            slider.type = 'range';
-            slider.id = `fx-ctrl-${ctrl.id}`;
-            slider.className = 'fx-ctrl-range';
-            slider.min = String(ctrl.min);
-            slider.max = String(ctrl.max);
-            slider.step = String(ctrl.step);
-            slider.value = String(fxParams[ctrl.id] ?? ctrl.def);
-            slider.setAttribute('aria-label', ctrl.label);
-
-            const valDisplay = document.createElement('output');
-            valDisplay.className = 'fx-ctrl-val';
-            valDisplay.setAttribute('for', `fx-ctrl-${ctrl.id}`);
-            valDisplay.textContent = slider.value;
-
-            slider.addEventListener('input', () => {
-                fxParams[ctrl.id] = parseFloat(slider.value);
-                valDisplay.textContent = slider.value;
-                if (ctrl.id === 'corrupt-intensity' || ctrl.id === 'corrupt-size') {
-                    nextCorruptAt = 0;
-                }
-            });
-
-            row.appendChild(lbl);
-            row.appendChild(slider);
-            row.appendChild(valDisplay);
-            fxPanelControls.appendChild(row);
-        });
+    if (preset.advancedControls?.length) {
+        const advanced = document.createElement('details');
+        advanced.className = 'fx-advanced';
+        const summary = document.createElement('summary');
+        summary.textContent = preset.advancedLabel || 'Advanced';
+        advanced.appendChild(summary);
+        const inner = document.createElement('div');
+        inner.className = 'fx-advanced-inner';
+        preset.advancedControls.forEach((ctrl) => appendFxControlRow(ctrl, inner, { compact: true }));
+        advanced.appendChild(inner);
+        fxPanelControls.appendChild(advanced);
     }
 
     const hasTunables = Boolean(
-        preset.controls?.length || preset.fontButtons || preset.audioLevel,
+        preset.controls?.length || preset.advancedControls?.length
+            || preset.fontButtons || preset.audioLevel,
     );
     if (fxPanelEmpty) {
         fxPanelEmpty.hidden = hasTunables;
@@ -1140,12 +1178,13 @@ function updateWaveformVis() {
     vctx.lineWidth = Math.max(1, dpr);
     vctx.stroke();
 
-    if (waveBurstEnv > 0.04) {
-        const burstH = waveBurstEnv * h * 0.9;
+    if (waveBurstEnv > 0.04 || (effectiveFx() === 'soundwave' && audioSubBass > 0.2)) {
+        const burstAmt = Math.max(waveBurstEnv, audioSubBass * fxParam('wave-bass-drive', 0.75) * 0.65);
+        const burstH = burstAmt * h * 0.9;
         const grad = vctx.createLinearGradient(0, midY - burstH, 0, midY + burstH);
-        grad.addColorStop(0, `rgba(240, 160, 64, ${0.15 + waveBurstEnv * 0.35})`);
-        grad.addColorStop(0.5, `rgba(255, 90, 60, ${0.25 + waveBurstEnv * 0.45})`);
-        grad.addColorStop(1, `rgba(240, 160, 64, ${0.15 + waveBurstEnv * 0.35})`);
+        grad.addColorStop(0, `rgba(240, 160, 64, ${0.15 + burstAmt * 0.35})`);
+        grad.addColorStop(0.5, `rgba(255, 90, 60, ${0.25 + burstAmt * 0.45})`);
+        grad.addColorStop(1, `rgba(240, 160, 64, ${0.15 + burstAmt * 0.35})`);
         vctx.fillStyle = grad;
         vctx.fillRect(0, midY - burstH * 0.5, w, burstH);
     }
@@ -1263,17 +1302,35 @@ function getActiveFont() {
     return FONT_STACK[0];
 }
 
+function updateAudioEq() {
+    if (!bassFilter || !trebleFilter) return;
+    bassFilter.gain.value = fxParams['audio-bass-eq'] ?? 4;
+    trebleFilter.gain.value = fxParams['audio-treble-eq'] ?? 0;
+}
+
 function initAudioAnalyser() {
     if (audioCtx || !video) return;
     try {
         audioCtx = new AudioContext();
         audioSource = audioCtx.createMediaElementSource(video);
+        bassFilter = audioCtx.createBiquadFilter();
+        bassFilter.type = 'lowshelf';
+        bassFilter.frequency.value = 110;
+        bassFilter.Q.value = 0.7;
+        trebleFilter = audioCtx.createBiquadFilter();
+        trebleFilter.type = 'highshelf';
+        trebleFilter.frequency.value = 3000;
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
-        audioSource.connect(analyser);
+        audioSource.connect(bassFilter);
+        bassFilter.connect(trebleFilter);
+        trebleFilter.connect(analyser);
         analyser.connect(audioCtx.destination);
+        updateAudioEq();
     } catch (_) {
         audioCtx = null;
+        bassFilter = null;
+        trebleFilter = null;
     }
 }
 
@@ -1295,6 +1352,10 @@ function updateAudioEnergy(now) {
         let bass = 0;
         for (let i = 0; i < 10; i++) bass += audioFreqData[i];
         audioBass = bass / (10 * 255);
+
+        let sub = 0;
+        for (let i = 0; i < 4; i++) sub += audioFreqData[i];
+        audioSubBass = sub / (4 * 255);
         audioEnergy = audioBass;
 
         let rmsSum = 0;
@@ -1304,25 +1365,32 @@ function updateAudioEnergy(now) {
         }
         audioRms = Math.sqrt(rmsSum / audioWaveform.length);
 
+        const bassDrive = fx === 'soundwave' ? fxParam('wave-bass-drive', 0.75) : 0;
+        const beatSignal = audioSubBass * (0.45 + bassDrive * 0.95)
+            + audioBass * Math.max(0.15, 1 - bassDrive * 0.55);
+
         if (!audioBeatHistory) audioBeatHistory = new Float32Array(44);
-        audioBeatHistory[audioBeatIdx] = audioBass;
+        audioBeatHistory[audioBeatIdx] = beatSignal;
         audioBeatIdx = (audioBeatIdx + 1) % audioBeatHistory.length;
         let histAvg = 0;
         for (let i = 0; i < audioBeatHistory.length; i++) histAvg += audioBeatHistory[i];
         histAvg /= audioBeatHistory.length;
-        const burstParam = fx === 'soundwave' ? fxParam('wave-burst', 0.35) : 0;
-        const beatGap = 260 - burstParam * 110;
-        const beatThresh = 0.18 - burstParam * 0.06;
-        audioBeat = audioBass > histAvg * (1.5 - burstParam * 0.25)
-            && audioBass > beatThresh
+        const burstParam = fx === 'soundwave' ? fxParam('wave-burst', 0.45) : 0;
+        const beatGap = 220 - burstParam * 100 - bassDrive * 40;
+        const beatThresh = 0.1 - burstParam * 0.04 - bassDrive * 0.05;
+        const beatRatio = 1.28 - burstParam * 0.18 - bassDrive * 0.22;
+        audioBeat = beatSignal > histAvg * beatRatio
+            && beatSignal > beatThresh
             && (now - lastBeatAt) > beatGap;
         if (audioBeat) lastBeatAt = now;
 
         if (fx === 'soundwave') {
+            const bounce = fxParam('wave-bounce', 0.6);
             if (audioBeat) {
-                waveBurstEnv = Math.min(1, 0.5 + audioBass * 0.55);
+                const hit = 0.4 + audioSubBass * (0.5 + bassDrive * 0.65) + audioBass * 0.25;
+                waveBurstEnv = Math.min(1, hit);
             }
-            const decay = 0.9 - burstParam * 0.28;
+            const decay = 0.76 + bounce * 0.2 - burstParam * 0.1;
             waveBurstEnv *= decay;
         } else {
             waveBurstEnv = 0;
@@ -1331,6 +1399,7 @@ function updateAudioEnergy(now) {
         audioEnergy = 0;
         audioRms = 0;
         audioBass = 0;
+        audioSubBass = 0;
         audioBeat = false;
         waveBurstEnv = 0;
     }
@@ -1796,10 +1865,10 @@ function tickBeatstrike(now) {
     if (!audioBeat || gridCols === 0 || gridRows === 0) return;
 
     const power = fx === 'soundwave'
-        ? (0.6 + fxParam('wave-burst', 0.35) * 2.2) * (0.5 + waveBurstEnv * 0.8)
+        ? (0.65 + fxParam('wave-burst', 0.45) * 2.4) * (0.45 + waveBurstEnv * 0.9 + audioSubBass * 0.5)
         : fxParam('beat-power', 1.2);
     const durationScale = fx === 'soundwave'
-        ? Math.max(0.35, 1 - fxParam('wave-burst', 0.35) * 0.55)
+        ? Math.max(0.3, 1 - fxParam('wave-burst', 0.45) * 0.5 + fxParam('wave-bounce', 0.6) * 0.25)
         : 1;
     const rC = () => 1 + Math.floor(Math.random() * (gridCols - 2));
     const rR = () => 1 + Math.floor(Math.random() * (gridRows - 2));
@@ -2852,9 +2921,10 @@ function distortCell(col, row) {
     if (fx === 'soundwave' && audioWaveform && audioWaveform.length >= 2) {
         const ampMul = fxParam('wave-amplitude', 3.0);
         const shimmerMul = fxParam('wave-shimmer', 1.4);
-        const burst = fxParam('wave-burst', 0.35);
+        const burst = fxParam('wave-burst', 0.45);
         const smooth = 1 - burst;
         const punch = burst * waveBurstEnv;
+        const bassDrive = fxParam('wave-bass-drive', 0.75);
 
         const span = Math.max(12, Math.floor(audioWaveform.length * (1 - burst * 0.8)));
         const t = (col / Math.max(1, gridCols - 1)) * (span - 1);
@@ -2869,7 +2939,8 @@ function distortCell(col, row) {
             wave = Math.sign(wave) * Math.pow(Math.abs(wave), sharp);
         }
 
-        const gate = smooth * (0.25 + audioRms * 0.75) + punch * (0.85 + audioBass * 0.4);
+        const gate = smooth * (0.25 + audioRms * 0.75)
+            + punch * (0.75 + audioSubBass * (0.55 + bassDrive * 0.5) + audioBass * 0.2);
         const warpDrive = ampMul * (0.55 + ampMul * 0.45);
         const amplitude = (10 + audioRms * 110) * warpDrive * gate;
         const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + wave * amplitude)));

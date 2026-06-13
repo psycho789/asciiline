@@ -1192,6 +1192,52 @@ body {
     font-family: var(--font-tech);
 }
 
+.fx-advanced {
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 2px;
+}
+
+.fx-advanced summary {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #686878;
+    cursor: pointer;
+    padding: 4px 0 6px;
+    list-style: none;
+    user-select: none;
+}
+
+.fx-advanced summary::-webkit-details-marker {
+    display: none;
+}
+
+.fx-advanced summary::before {
+    content: '▸ ';
+    color: var(--accent-color);
+}
+
+.fx-advanced[open] summary::before {
+    content: '▾ ';
+}
+
+.fx-advanced-inner {
+    max-height: 88px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.fx-ctrl-row-compact {
+    margin: 3px 0;
+}
+
+.fx-ctrl-row-compact .fx-ctrl-label {
+    min-width: 88px;
+    font-size: 11px;
+}
+
 /* Font picker buttons */
 .fx-font-row {
     display: flex;
