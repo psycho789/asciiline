@@ -580,6 +580,9 @@ function buildFxPanel(id) {
             slider.addEventListener('input', () => {
                 fxParams[ctrl.id] = parseFloat(slider.value);
                 valDisplay.textContent = slider.value;
+                if (ctrl.id === 'corrupt-intensity' || ctrl.id === 'corrupt-size') {
+                    nextCorruptAt = 0;
+                }
             });
 
             row.appendChild(lbl);
