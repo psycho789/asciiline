@@ -282,6 +282,32 @@ body {
     align-items: flex-start;
 }
 
+.control-row-track {
+    gap: 6px;
+    align-items: center;
+}
+
+.track-label {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.5px;
+    flex: 1;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.track-btn {
+    padding: 2px 8px;
+    min-width: 28px;
+    font-size: 13px;
+}
+
+.control-row-track[hidden] {
+    display: none;
+}
+
 .ctrl-label {
     font-size: 10px;
     font-weight: 600;

@@ -1,6 +1,7 @@
 {
-  "video": "videos/fg.mp4",
-  "loop": true,
-  "ascii": { "mode": 3, "cols": 220 },
-  "pixel": { "mode": 5, "cols": 400 }
+  "playlist": [
+    { "src": "videos/fg.mp4",        "ascii": { "mode": 3, "cols": 220 }, "pixel": { "mode": 5, "cols": 400 } },
+    { "src": "videos/jubeilunch.mp4", "ascii": { "mode": 3, "cols": 220 }, "pixel": { "mode": 5, "cols": 400 } }
+  ],
+  "loop": true
 }

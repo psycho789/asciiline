@@ -17,6 +17,8 @@ const modePixelBtn = document.getElementById('mode-pixel');
 const copyFrameBtn = document.getElementById('copy-frame-btn');
 const fxPicker = document.getElementById('fx-picker');
 const fxHintEl = document.getElementById('fx-hint');
+const trackPrevBtn = document.getElementById('track-prev');
+const trackNextBtn = document.getElementById('track-next');
 
 const PALETTE =
     " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
@@ -213,6 +215,7 @@ const offscreen = document.createElement('canvas');
 const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
 
 let siteConfig = null;
+let playlistIndex = 0;
 let state = 'IDLE';
 let preferPixel = sessionStorage.getItem('asciiline-pixel') === '1';
 let activeFx = sessionStorage.getItem('asciiline-fx') || 'clean';
@@ -887,17 +890,49 @@ function renderPixel(now) {
 
 // ── CONFIG & GEOMETRY ─────────────────────────────────────
 
+function currentPlaylistEntry() {
+    if (!siteConfig) return null;
+    if (siteConfig.playlist) return siteConfig.playlist[playlistIndex % siteConfig.playlist.length];
+    return { src: siteConfig.video, ascii: siteConfig.ascii, pixel: siteConfig.pixel };
+}
+
 async function loadConfig() {
     const res = await fetch('config.json');
     if (!res.ok) throw new Error('Failed to load config.json');
     siteConfig = await res.json();
-    video.src = siteConfig.video;
-    video.loop = Boolean(siteConfig.loop);
+    const entry = currentPlaylistEntry();
+    video.src = entry.src;
+    video.loop = siteConfig.playlist ? false : Boolean(siteConfig.loop);
+    updateTrackLabel();
+}
+
+function advancePlaylist() {
+    if (!siteConfig?.playlist) return;
+    playlistIndex = (playlistIndex + 1) % siteConfig.playlist.length;
+    const entry = currentPlaylistEntry();
+    video.src = entry.src;
+    updateTrackLabel();
+}
+
+function updateTrackLabel() {
+    const row = document.querySelector('.control-row-track');
+    const el = document.getElementById('track-label');
+    if (!siteConfig?.playlist || siteConfig.playlist.length <= 1) {
+        if (row) row.hidden = true;
+        return;
+    }
+    if (row) row.hidden = false;
+    if (!el) return;
+    const total = siteConfig.playlist.length;
+    const src = currentPlaylistEntry()?.src || '';
+    const name = src.replace(/^.*\//, '').replace(/\.mp4$/i, '');
+    el.textContent = `${playlistIndex + 1} / ${total} — ${name}`;
 }
 
 function currentRenderPrefs() {
-    if (!siteConfig) return { mode: 3, cols: 220 };
-    return preferPixel ? siteConfig.pixel : siteConfig.ascii;
+    const entry = currentPlaylistEntry();
+    if (!entry) return { mode: 3, cols: 220 };
+    return preferPixel ? (entry.pixel || { mode: 5, cols: 400 }) : (entry.ascii || { mode: 3, cols: 220 });
 }
 
 function calcAutoRows(cols, vidW, vidH, isPixel) {
@@ -1552,8 +1587,33 @@ if (copyFrameBtn) {
     copyFrameBtn.addEventListener('click', () => copyCurrentFrame());
 }
 
-video.addEventListener('ended', () => {
-    if (!video.loop && state === 'PLAYING') finishStream();
+async function jumpToTrack(delta) {
+    if (!siteConfig?.playlist) return;
+    playlistIndex = (playlistIndex + delta + siteConfig.playlist.length) % siteConfig.playlist.length;
+    const entry = currentPlaylistEntry();
+    video.src = entry.src;
+    updateTrackLabel();
+    if (state === 'PLAYING') {
+        finishStream();
+        await startStream();
+    }
+}
+
+if (trackPrevBtn) trackPrevBtn.addEventListener('click', () => jumpToTrack(-1));
+if (trackNextBtn) trackNextBtn.addEventListener('click', () => jumpToTrack(1));
+
+video.addEventListener('ended', async () => {
+    if (video.loop) return;
+    if (state !== 'PLAYING') return;
+    if (siteConfig?.playlist && siteConfig.playlist.length > 1) {
+        advancePlaylist();
+        await startStream();
+    } else if (siteConfig?.loop) {
+        video.currentTime = 0;
+        video.play().catch(() => {});
+    } else {
+        finishStream();
+    }
 });
 
 window.addEventListener('resize', () => {
