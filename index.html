@@ -39,29 +39,39 @@
                         <div class="player-hud" id="player-hud">
                             <span id="hud-look-label" class="hud-look-label">CLEAN</span>
                             <div class="ctrl-bar player-hud-bar">
-                                <div class="mode-toggle" role="group" aria-label="Render mode">
-                                    <button type="button" id="mode-ascii" class="mode-btn active" aria-pressed="true"
-                                        title="Character grid">ASCII</button>
-                                    <button type="button" id="mode-pixel" class="mode-btn" aria-pressed="false"
-                                        title="Colored blocks, higher fidelity">PIXEL</button>
+                                <div class="hud-transport-row">
+                                    <button type="button" id="transport-play" class="transport-play-btn"
+                                        title="Play / Pause" aria-label="Play or pause">&#9654;</button>
+                                    <div class="hud-seek-wrap">
+                                        <input id="seek-slider" type="range" min="0" max="1000" value="0"
+                                            disabled aria-label="Seek">
+                                    </div>
+                                    <span class="hud-time" id="hud-time">
+                                        <span id="time-current">0:00</span>
+                                        <span class="hud-time-sep">/</span>
+                                        <span id="time-duration">0:00</span>
+                                    </span>
+                                    <button type="button" id="fullscreen-btn" class="ctrl-bar-btn hud-fs-btn"
+                                        title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
                                 </div>
+                                <div class="hud-meta-row">
+                                    <div class="ctrl-bar-track" id="ctrl-bar-track">
+                                        <button type="button" id="track-prev" class="track-nav-btn" title="Previous">&#8592;</button>
+                                        <span id="track-label" class="track-label"></span>
+                                        <button type="button" id="track-next" class="track-nav-btn" title="Next">&#8594;</button>
+                                    </div>
 
-                                <div class="ctrl-bar-track" id="ctrl-bar-track">
-                                    <button type="button" id="track-prev" class="track-nav-btn" title="Previous">&#8592;</button>
-                                    <span id="track-label" class="track-label"></span>
-                                    <button type="button" id="track-next" class="track-nav-btn" title="Next">&#8594;</button>
+                                    <div class="ctrl-bar-vol">
+                                        <label class="ctrl-bar-label" id="vol-label" for="volume-slider">VOL</label>
+                                        <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1"
+                                            aria-label="Volume">
+                                    </div>
+
+                                    <button type="button" id="copy-frame-btn" class="ctrl-bar-btn" disabled
+                                        title="Copy ASCII frame to clipboard">Copy</button>
+
+                                    <div id="status" class="status" role="status" aria-live="polite">Ready</div>
                                 </div>
-
-                                <div class="ctrl-bar-vol">
-                                    <label class="ctrl-bar-label" for="volume-slider">VOL</label>
-                                    <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1"
-                                        aria-label="Volume">
-                                </div>
-
-                                <button type="button" id="copy-frame-btn" class="ctrl-bar-btn" disabled
-                                    title="Copy ASCII frame to clipboard">Copy</button>
-
-                                <div id="status" class="status" role="status" aria-live="polite">Ready</div>
                             </div>
                         </div>
                     </div>
@@ -77,7 +87,15 @@
                                 title="Reset — no effects" aria-label="Reset to clean">⟲</button>
                             <div class="fx-panel-head-main">
                                 <span class="fx-panel-name" id="fx-panel-name">CLEAN</span>
+                            </div>
+                            <div class="fx-panel-head-right">
                                 <span class="fx-panel-compat" id="fx-panel-compat" hidden></span>
+                                <div class="mode-toggle mode-toggle-compact" role="group" aria-label="Render mode">
+                                    <button type="button" id="mode-ascii" class="mode-btn active" aria-pressed="true"
+                                        title="Character grid">ASCII</button>
+                                    <button type="button" id="mode-pixel" class="mode-btn" aria-pressed="false"
+                                        title="Colored blocks, higher fidelity">PIXEL</button>
+                                </div>
                             </div>
                             <span class="fx-panel-badge" id="fx-panel-badge" hidden></span>
                         </div>
@@ -85,16 +103,34 @@
                             <p class="fx-panel-desc" id="fx-panel-desc">The video renders exactly as-is — no modifications.</p>
                             <p class="fx-panel-action" id="fx-panel-action" hidden></p>
                             <div class="fx-panel-controls-slot">
+                                <div class="fx-panel-empty" id="fx-panel-empty" hidden>
+                                    <div class="fx-panel-empty-art" aria-hidden="true"></div>
+                                    <p class="fx-panel-empty-label">No tunables — pick another LOOK or push sliders on Chaos/Sound presets</p>
+                                </div>
                                 <div class="fx-panel-controls" id="fx-panel-controls"></div>
                             </div>
                         </div>
                     </div>
 
                     <div class="fx-grid-wrap">
-                        <div class="fx-compat-legend" aria-hidden="true">
-                            <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="ascii">A</span> ASCII</span>
-                            <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="pixel">P</span> Pixel</span>
-                            <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="both">✦</span> Both</span>
+                        <div class="fx-rail-head">
+                            <div class="fx-compat-legend" aria-hidden="true">
+                                <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="ascii">A</span> ASCII</span>
+                                <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="pixel">P</span> Pixel</span>
+                                <span class="fx-compat-legend-item"><span class="fx-compat-mark" data-compat="both">✦</span> Both</span>
+                            </div>
+                            <button type="button" id="demo-toggle" class="demo-toggle-btn"
+                                title="Auto-cycle through visible LOOK presets" aria-pressed="false">DEMO</button>
+                        </div>
+                        <div class="fx-cat-filter" id="fx-cat-filter" role="group" aria-label="Filter categories">
+                            <button type="button" class="fx-cat-pill fx-cat-pill-all" data-cat="all">All</button>
+                            <button type="button" class="fx-cat-pill active" data-cat="sound">Sound</button>
+                            <button type="button" class="fx-cat-pill active" data-cat="chaos">Chaos</button>
+                            <button type="button" class="fx-cat-pill active" data-cat="typo">Typo</button>
+                            <button type="button" class="fx-cat-pill active" data-cat="warp">Warp</button>
+                            <button type="button" class="fx-cat-pill active" data-cat="crt">CRT</button>
+                            <button type="button" class="fx-cat-pill active" data-cat="color">Color</button>
+                            <button type="button" class="fx-cat-pill fx-cat-pill-none" data-cat="none">None</button>
                         </div>
                         <div id="fx-picker" role="listbox" aria-label="Visual effects"
                             aria-describedby="fx-panel"></div>

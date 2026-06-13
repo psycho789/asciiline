@@ -26,6 +26,15 @@ const fxPanelCompat = document.getElementById('fx-panel-compat');
 const fxResetBtn = document.getElementById('fx-reset-btn');
 const trackPrevBtn = document.getElementById('track-prev');
 const trackNextBtn = document.getElementById('track-next');
+const transportPlayBtn = document.getElementById('transport-play');
+const seekSlider = document.getElementById('seek-slider');
+const timeCurrentEl = document.getElementById('time-current');
+const timeDurationEl = document.getElementById('time-duration');
+const fullscreenBtn = document.getElementById('fullscreen-btn');
+const fxPanelEmpty = document.getElementById('fx-panel-empty');
+const demoToggleBtn = document.getElementById('demo-toggle');
+const catFilterEl = document.getElementById('fx-cat-filter');
+const volLabel = document.getElementById('vol-label');
 
 const PALETTE =
     " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
@@ -148,8 +157,8 @@ const FX_PRESETS = {
         hint: 'Random rectangles of garbled characters simulate memory corruption of the text buffer.',
         fullDesc: 'Randomly trashes large blocks of characters to simulate corrupted video memory — like a broken file being read from a failing drive. Use the sliders below to control how intense and how big the glitches are.',
         controls: [
-            { id: 'corrupt-intensity', label: 'How intense?', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
-            { id: 'corrupt-size',      label: 'Zone size',    min: 0.3, max: 2.5, step: 0.1, def: 1.0 },
+            { id: 'corrupt-intensity', label: 'How intense?', min: 0.3, max: 8.0, step: 0.1, def: 1.0 },
+            { id: 'corrupt-size',      label: 'Zone size',    min: 0.3, max: 5.0, step: 0.1, def: 1.0 },
         ],
         css: 'fx-corrupt',
         asciiOnly: true,
@@ -171,7 +180,7 @@ const FX_PRESETS = {
         hintAscii: 'Glyph-shaped afterimages as characters fade into the next frame.',
         fullDesc: 'Previous frames fade slowly behind the current one, exactly like a CRT monitor that keeps glowing after the image changes. Fast motion leaves long trails.',
         controls: [
-            { id: 'phosphor-trail', label: 'Trail length', min: 0.30, max: 0.96, step: 0.01, def: 0.78 },
+            { id: 'phosphor-trail', label: 'Trail length', min: 0.30, max: 0.99, step: 0.01, def: 0.78 },
         ],
         css: 'fx-phosphor',
         asciiOnly: true,
@@ -215,8 +224,8 @@ const FX_PRESETS = {
         fullDesc: 'Click anywhere on the video to send a wave rippling outward through the characters. The wave distorts each character it passes. Use the sliders to control how large and how fast the waves travel.',
         action: 'Click anywhere on the video to create a ripple.',
         controls: [
-            { id: 'ripple-size',  label: 'Wave size',  min: 0.5, max: 4.0, step: 0.1, def: 1.0 },
-            { id: 'ripple-speed', label: 'Wave speed', min: 0.4, max: 2.5, step: 0.1, def: 1.0 },
+            { id: 'ripple-size',  label: 'Wave size',  min: 0.5, max: 7.0, step: 0.1, def: 1.0 },
+            { id: 'ripple-speed', label: 'Wave speed', min: 0.4, max: 5.0, step: 0.1, def: 1.0 },
         ],
         css: 'fx-ripple',
         asciiOnly: true,
@@ -241,7 +250,7 @@ const FX_PRESETS = {
         action: 'Turn volume up — the audio track controls the effect.',
         audioLevel: true,
         controls: [
-            { id: 'resonate-drive', label: 'Audio drive', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+            { id: 'resonate-drive', label: 'Audio drive', min: 0.3, max: 6.0, step: 0.1, def: 1.0 },
         ],
         css: 'fx-resonate',
         asciiOnly: true,
@@ -256,8 +265,8 @@ const FX_PRESETS = {
         action: 'Turn volume up — every sound physically warps the image.',
         audioLevel: true,
         controls: [
-            { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 4.0, step: 0.1, def: 2.0 },
-            { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 3.0, step: 0.1, def: 1.4 },
+            { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 10.0, step: 0.1, def: 2.0 },
+            { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 6.0, step: 0.1, def: 1.4 },
         ],
         css: 'fx-soundwave fx-ripple',
         asciiOnly: true,
@@ -271,7 +280,7 @@ const FX_PRESETS = {
         action: 'Turn volume up — every beat launches a ripple wave.',
         audioLevel: true,
         controls: [
-            { id: 'beat-power', label: 'Beat power', min: 0.3, max: 3.0, step: 0.1, def: 1.2 },
+            { id: 'beat-power', label: 'Beat power', min: 0.3, max: 6.0, step: 0.1, def: 1.2 },
         ],
         css: 'fx-beatstrike fx-ripple',
         asciiOnly: true,
@@ -285,7 +294,7 @@ const FX_PRESETS = {
         action: 'Turn volume up — different instruments distort different parts of the image.',
         audioLevel: true,
         controls: [
-            { id: 'spectra-tear', label: 'Band tear', min: 0.3, max: 3.0, step: 0.1, def: 1.3 },
+            { id: 'spectra-tear', label: 'Band tear', min: 0.3, max: 7.0, step: 0.1, def: 1.3 },
         ],
         css: 'fx-spectra',
         asciiOnly: true,
@@ -298,7 +307,7 @@ const FX_PRESETS = {
         fullDesc: 'An autonomous ripple engine runs on its own — firing tsunamis, spirals, shatters, interference waves, and more on a random schedule. You can also click the video to add your own. Use the slider to control how chaotic it gets.',
         action: 'Click the video to add your own ripples to the chaos.',
         controls: [
-            { id: 'ghost-chaos', label: 'Chaos level', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+            { id: 'ghost-chaos', label: 'Chaos level', min: 0.3, max: 6.0, step: 0.1, def: 1.0 },
         ],
         css: 'fx-ripple fx-auto-ripple',
         asciiOnly: true,
@@ -310,7 +319,7 @@ const FX_PRESETS = {
         hint: 'A singularity drifts through the grid, warping characters toward it and devouring them at the event horizon.',
         fullDesc: 'A black hole drifts through the character grid. Nearby characters bend toward it — the closer they get, the more they warp. Characters that reach the event horizon are devoured. Use the slider to control its gravitational pull.',
         controls: [
-            { id: 'hole-gravity', label: 'Gravity strength', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+            { id: 'hole-gravity', label: 'Gravity strength', min: 0.3, max: 6.0, step: 0.1, def: 1.0 },
         ],
         css: 'fx-hole',
         asciiOnly: true,
@@ -329,7 +338,7 @@ const FX_PRESETS = {
         hint: 'Each column drips at a different speed — the image slowly runs and pools like paint, then cycles.',
         fullDesc: 'Each column of the image drips downward at its own random speed, like wet paint running. The image slowly pools and smears before resetting. Use the slider to control how fast it melts.',
         controls: [
-            { id: 'melt-speed', label: 'Drip speed', min: 0.3, max: 3.0, step: 0.1, def: 1.0 },
+            { id: 'melt-speed', label: 'Drip speed', min: 0.3, max: 5.0, step: 0.1, def: 1.0 },
         ],
         css: 'fx-melt',
         asciiOnly: true,
@@ -399,7 +408,7 @@ const FX_PRESETS = {
         hint: 'The grid warps through a virtual lens — center magnified, edges compressed.',
         fullDesc: 'The character grid warps through a virtual barrel lens — center magnified, edges compressed into a fisheye bulge.',
         controls: [
-            { id: 'lens-strength', label: 'Barrel strength', min: 0.15, max: 1.0, step: 0.05, def: 0.45 },
+            { id: 'lens-strength', label: 'Barrel strength', min: 0.15, max: 1.8, step: 0.05, def: 0.45 },
         ],
         css: 'fx-lens', asciiOnly: true,
     },
@@ -408,7 +417,7 @@ const FX_PRESETS = {
         hint: 'Distance from center determines twist angle — the image funnels into a vortex.',
         fullDesc: 'Distance from center determines twist angle — the image funnels into a slowly rotating vortex.',
         controls: [
-            { id: 'swirl-twist', label: 'Twist amount', min: 0.3, max: 2.5, step: 0.1, def: 1.0 },
+            { id: 'swirl-twist', label: 'Twist amount', min: 0.3, max: 5.0, step: 0.1, def: 1.0 },
         ],
         css: 'fx-swirl', asciiOnly: true,
     },
@@ -474,7 +483,7 @@ const FX_PRESETS = {
         action: 'Turn volume up. The window grows and shrinks with sound.',
         audioLevel: true,
         controls: [
-            { id: 'pulse-breath', label: 'Breath amount', min: 0.3, max: 3.0, step: 0.1, def: 1.3 },
+            { id: 'pulse-breath', label: 'Breath amount', min: 0.3, max: 6.0, step: 0.1, def: 1.3 },
         ],
         css: 'fx-pulse-clip', asciiOnly: false, pixelOk: true, interactive: true,
     },
@@ -548,22 +557,17 @@ const FX_CATEGORIES = [
     {
         id: 'warp',
         label: 'Warp',
-        presets: ['lens', 'swirl', 'fold', 'radar', 'orbit', 'rotwave', 'tilt3d'],
+        presets: ['lens', 'swirl', 'fold', 'radar', 'orbit', 'rotwave', 'tilt3d', 'echo', 'roll'],
     },
     {
         id: 'crt',
         label: 'CRT',
-        presets: ['phosphor', 'interlace', 'broadcast', 'thermal'],
+        presets: ['phosphor', 'interlace', 'broadcast', 'thermal', 'retro', 'dots', 'film'],
     },
     {
         id: 'color',
         label: 'Color',
-        presets: ['spectrum', 'punch', 'invert', 'aura', 'chrome', 'haze', 'plasma', 'bloom', 'screen', 'glass'],
-    },
-    {
-        id: 'pixel',
-        label: 'Pixel',
-        presets: ['edge', 'relief', 'crisp', 'retro', 'dots', 'echo', 'film', 'roll'],
+        presets: ['spectrum', 'punch', 'invert', 'aura', 'chrome', 'haze', 'plasma', 'bloom', 'screen', 'glass', 'edge', 'relief', 'crisp'],
     },
 ];
 
@@ -595,15 +599,178 @@ function hideCompatMark(el) {
     delete el.dataset.compat;
 }
 
+function saveCategoryFilter() {
+    sessionStorage.setItem(CAT_FILTER_KEY, JSON.stringify([...categoryFilter]));
+}
+
+function updateCategoryFilterUI() {
+    if (catFilterEl) {
+        catFilterEl.querySelectorAll('.fx-cat-pill').forEach((pill) => {
+            const cat = pill.dataset.cat;
+            if (cat === 'all' || cat === 'none') return;
+            pill.classList.toggle('active', categoryFilter.has(cat));
+        });
+    }
+    if (fxPicker) {
+        fxPicker.querySelectorAll('.fx-category').forEach((section) => {
+            section.hidden = !categoryFilter.has(section.dataset.category);
+        });
+    }
+}
+
+function getVisiblePresetIds() {
+    const ids = [];
+    for (const cat of FX_CATEGORIES) {
+        if (!categoryFilter.has(cat.id)) continue;
+        for (const id of cat.presets) {
+            if (FX_PRESETS[id]) ids.push(id);
+        }
+    }
+    return ids;
+}
+
+function updateHudLookLabel() {
+    const hudLabel = document.getElementById('hud-look-label');
+    if (!hudLabel) return;
+    const name = activeFx === 'clean' ? 'CLEAN' : (FX_PRESETS[activeFx]?.label || 'CLEAN');
+    hudLabel.textContent = demoEnabled ? `DEMO · ${name}` : name;
+    hudLabel.classList.toggle('demo-active', demoEnabled);
+}
+
+function stopDemoMode() {
+    if (demoIntervalId) {
+        clearInterval(demoIntervalId);
+        demoIntervalId = null;
+    }
+    demoEnabled = false;
+    if (demoToggleBtn) {
+        demoToggleBtn.classList.remove('active');
+        demoToggleBtn.setAttribute('aria-pressed', 'false');
+    }
+    updateHudLookLabel();
+}
+
+function advanceDemoPreset() {
+    const ids = getVisiblePresetIds();
+    if (!ids.length) return;
+    const idx = ids.indexOf(activeFx);
+    const next = ids[(idx + 1) % ids.length];
+    applyFx(next, { fromDemo: true });
+}
+
+function startDemoMode() {
+    stopDemoMode();
+    const ids = getVisiblePresetIds();
+    if (!ids.length) return;
+    demoEnabled = true;
+    if (demoToggleBtn) {
+        demoToggleBtn.classList.add('active');
+        demoToggleBtn.setAttribute('aria-pressed', 'true');
+    }
+    if (!ids.includes(activeFx)) applyFx(ids[0], { fromDemo: true });
+    else updateHudLookLabel();
+    demoIntervalId = setInterval(advanceDemoPreset, DEMO_MS);
+}
+
+function formatTime(sec) {
+    if (!Number.isFinite(sec) || sec < 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function isPlaybackActive() {
+    return state === 'PLAYING' || state === 'PAUSED';
+}
+
+function updateTransportUI() {
+    if (!transportPlayBtn) return;
+    const active = isPlaybackActive();
+    transportPlayBtn.hidden = !active;
+    const playing = state === 'PLAYING' && !video.paused;
+    transportPlayBtn.textContent = playing ? '\u23F8' : '\u25B6';
+    transportPlayBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    if (seekSlider) {
+        const hasDuration = Number.isFinite(video.duration) && video.duration > 0;
+        seekSlider.disabled = !active || !hasDuration;
+        if (hasDuration && !seekDragging) {
+            seekSlider.value = String(Math.round((video.currentTime / video.duration) * 1000));
+        }
+    }
+    if (timeCurrentEl) timeCurrentEl.textContent = formatTime(video.currentTime);
+    if (timeDurationEl) timeDurationEl.textContent = formatTime(video.duration);
+}
+
+function pausePlayback() {
+    if (state !== 'PLAYING') return;
+    video.pause();
+    state = 'PAUSED';
+    lastMediaTime = -1;
+    updateTransportUI();
+}
+
+function resumePlayback() {
+    if (state !== 'PAUSED') return;
+    video.play().then(() => {
+        state = 'PLAYING';
+        startFrameLoop();
+        updateTransportUI();
+    }).catch(() => {});
+}
+
+function togglePlayback() {
+    if (state === 'IDLE') {
+        startStream();
+        return;
+    }
+    if (state === 'PLAYING') pausePlayback();
+    else if (state === 'PAUSED') resumePlayback();
+}
+
 // Populate fxParams defaults from FX_PRESETS controls definitions
 const fxParams = {};
+const CONTROL_DEFS = {};
 for (const preset of Object.values(FX_PRESETS)) {
     if (preset.controls) {
         for (const ctrl of preset.controls) {
             fxParams[ctrl.id] = ctrl.def;
+            CONTROL_DEFS[ctrl.id] = ctrl;
         }
     }
 }
+
+function fxParam(id, def = 1) {
+    const raw = fxParams[id] ?? def;
+    const ctrl = CONTROL_DEFS[id];
+    if (!ctrl) return raw;
+    const span = ctrl.max - ctrl.min;
+    if (span <= 0) return raw;
+    const t = (raw - ctrl.min) / span;
+    if (t <= 0.5) return raw;
+    const boosted = Math.pow((t - 0.5) * 2, 0.45);
+    return ctrl.min + span * (0.5 + boosted * 0.5);
+}
+
+const CAT_FILTER_KEY = 'asciiline-cat-filter';
+const ALL_CATEGORY_IDS = FX_CATEGORIES.map((c) => c.id);
+let categoryFilter;
+try {
+    const saved = JSON.parse(sessionStorage.getItem(CAT_FILTER_KEY) || '[]');
+    if (Array.isArray(saved) && saved.length > 0) {
+        categoryFilter = new Set(saved.filter((id) => ALL_CATEGORY_IDS.includes(id)));
+    } else {
+        categoryFilter = new Set(ALL_CATEGORY_IDS);
+    }
+} catch {
+    categoryFilter = new Set(ALL_CATEGORY_IDS);
+}
+if (categoryFilter.size === 0) categoryFilter = new Set(ALL_CATEGORY_IDS);
+
+let demoIntervalId = null;
+let demoEnabled = false;
+const DEMO_MS = 8000;
+let lastVolume = 1;
+let seekDragging = false;
 
 const CHAR_LUT = new Array(256);
 for (let i = 0; i < 256; i++) CHAR_LUT[i] = String.fromCharCode(i);
@@ -723,8 +890,9 @@ function resetFxState() {
     }
 }
 
-function applyFx(id, { cycleFont = false } = {}) {
+function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
     if (!FX_PRESETS[id]) return;
+    if (!fromDemo) stopDemoMode();
 
     if (pixelMode && FX_PRESETS[id].asciiOnly && !FX_PRESETS[id].pixelOk) {
         flashCopyStatus('This LOOK preset is ASCII-only — switch to ASCII mode');
@@ -802,9 +970,9 @@ function buildFxPanel(id) {
     if (fxPanelDesc) {
         let body = preset.fullDesc || preset.hint || preset.tip || '';
         if (id !== 'clean' && pixelMode && preset.asciiOnly && !preset.pixelOk) {
-            body = 'This effect needs the ASCII character grid. Switch to ASCII mode on the player HUD.';
+            body = 'This effect needs the ASCII character grid. Switch to ASCII mode in the panel header.';
         } else if (id !== 'clean' && !pixelMode && preset.pixelOnly) {
-            body = 'This effect needs Pixel mode. Switch to Pixel on the player HUD.';
+            body = 'This effect needs Pixel mode. Switch to Pixel in the panel header.';
         }
         fxPanelDesc.textContent = body;
     }
@@ -894,6 +1062,13 @@ function buildFxPanel(id) {
             fxPanelControls.appendChild(row);
         });
     }
+
+    const hasTunables = Boolean(
+        preset.controls?.length || preset.fontButtons || preset.audioLevel,
+    );
+    if (fxPanelEmpty) {
+        fxPanelEmpty.hidden = hasTunables;
+    }
 }
 
 function updateAudioLevelBar() {
@@ -927,10 +1102,7 @@ function updateFxPickerUI() {
         if (on) activeChip = btn;
     });
     buildFxPanel(activeFx);
-    const hudLabel = document.getElementById('hud-look-label');
-    if (hudLabel) {
-        hudLabel.textContent = activeFx === 'clean' ? 'CLEAN' : (FX_PRESETS[activeFx]?.label || 'CLEAN');
-    }
+    updateHudLookLabel();
     if (activeChip) {
         activeChip.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
@@ -967,10 +1139,10 @@ function createFxChip(id, preset) {
         const isAsciiOnly = preset.asciiOnly && !preset.pixelOk;
         const isPixelOnly = preset.pixelOnly;
         if (pixelMode && isAsciiOnly) {
-            setPreferPixel(false, { reconnect: state === 'PLAYING' });
+            setPreferPixel(false, { reconnect: isPlaybackActive() });
             setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
         } else if (!pixelMode && isPixelOnly) {
-            setPreferPixel(true, { reconnect: state === 'PLAYING' });
+            setPreferPixel(true, { reconnect: isPlaybackActive() });
             setTimeout(() => applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' }), 50);
         } else {
             applyFx(id, { cycleFont: id === 'font-morph' && activeFx === 'font-morph' });
@@ -1005,6 +1177,7 @@ function buildFxPicker() {
         fxPicker.appendChild(section);
     }
     updateFxPickerUI();
+    updateCategoryFilterUI();
 }
 
 function getActiveFont() {
@@ -1073,10 +1246,10 @@ function updateAudioEnergy(now) {
     audioBeat = audioBass > histAvg * 1.5 && audioBass > 0.18 && (now - lastBeatAt) > 260;
     if (audioBeat) lastBeatAt = now;
 
-    triglyphOffset = 2 + Math.floor(audioBass * 4 * (fxParams['resonate-drive'] ?? 1.0));
+    triglyphOffset = 2 + Math.floor(audioBass * 4 * fxParam('resonate-drive', 1.0));
     container.classList.toggle('fx-beat', audioBass > 0.55);
 
-    if (fx === 'resonate' && audioBass > 0.65 * (1 / (fxParams['resonate-drive'] ?? 1.0)) && now >= nextCorruptAt) {
+    if (fx === 'resonate' && audioBass > 0.65 * (1 / fxParam('resonate-drive', 1.0)) && now >= nextCorruptAt) {
         spawnCorruptZone();
         nextCorruptAt = now + 200;
     }
@@ -1084,7 +1257,7 @@ function updateAudioEnergy(now) {
 
 function spawnCorruptZone() {
     if (gridCols < 4 || gridRows < 4) return;
-    const sz = fxParams['corrupt-size'] ?? 1.0;
+    const sz = fxParam('corrupt-size', 1.0);
     // 15% chance: full-width tear band (entire row width, very dramatic)
     const fullBand = Math.random() < 0.15;
     const h = fullBand
@@ -1099,7 +1272,7 @@ function spawnCorruptZone() {
     for (let i = 0; i < chars.length; i++) {
         chars[i] = CORRUPT_CHARS.charCodeAt(Math.floor(Math.random() * CORRUPT_CHARS.length));
     }
-    const maxZones = Math.round(10 + (fxParams['corrupt-intensity'] ?? 1.0) * 4);
+    const maxZones = Math.round(10 + fxParam('corrupt-intensity', 1.0) * 4);
     corruptZones.push({ row0, row1: row0 + h - 1, col0, col1: col0 + w - 1, decay: 4, chars });
     if (corruptZones.length > maxZones) corruptZones.shift();
 }
@@ -1110,7 +1283,7 @@ function updateCorrupt(now) {
 
     if (fx === 'corrupt' && now >= nextCorruptAt) {
         spawnCorruptZone();
-        const intensity = fxParams['corrupt-intensity'] ?? 1.0;
+        const intensity = fxParam('corrupt-intensity', 1.0);
         nextCorruptAt = now + (300 + Math.random() * 500) / intensity;
     }
 
@@ -1516,7 +1689,7 @@ function tickAutoRipple(now) {
         const baseGap = r < 0.15 ? 400 + Math.random() * 600      // 15%: very fast back-to-back
                        : r < 0.6  ? 800 + Math.random() * 1800     // 45%: normal
                        :             2200 + Math.random() * 2800;   // 40%: longer pause
-        const chaos = fxParams['ghost-chaos'] ?? 1.0;
+        const chaos = fxParam('ghost-chaos', 1.0);
         autoRippleNextAt = now + baseGap / chaos;
     }
 }
@@ -1526,7 +1699,7 @@ function tickBeatstrike(now) {
     if ((fx !== 'beatstrike' && fx !== 'soundwave') || state !== 'PLAYING' || pixelMode) return;
     if (!audioBeat || gridCols === 0 || gridRows === 0) return;
 
-    const power = fxParams['beat-power'] ?? 1.2;
+    const power = fxParam('beat-power', 1.2);
     const rC = () => 1 + Math.floor(Math.random() * (gridCols - 2));
     const rR = () => 1 + Math.floor(Math.random() * (gridRows - 2));
     const rCs = () => AUTO_RIPPLE_CHAR_SETS[Math.floor(Math.random() * AUTO_RIPPLE_CHAR_SETS.length)];
@@ -1683,8 +1856,8 @@ function applyPostFx() {
     const usePhosphor = fx === 'phosphor' || (fx === 'resonate' && audioEnergy > 0.35);
     if (!usePhosphor || !trailCanvas) return;
 
-    const trailBase = fxParams['phosphor-trail'] ?? 0.78;
-    const drive = fx === 'resonate' ? (fxParams['resonate-drive'] ?? 1.0) : 1;
+    const trailBase = fxParam('phosphor-trail', 0.78);
+    const drive = fx === 'resonate' ? fxParam('resonate-drive', 1.0) : 1;
     trailCtx.globalAlpha = fx === 'resonate' ? Math.min(0.97, trailBase + audioEnergy * 0.12 * drive) : trailBase;
     trailCtx.drawImage(trailCanvas, 0, 0);
     trailCtx.globalAlpha = 1;
@@ -1999,7 +2172,7 @@ async function loadConfig() {
     siteConfig = await res.json();
     const entry = currentPlaylistEntry();
     video.src = entry.src;
-    video.loop = siteConfig.playlist ? false : Boolean(siteConfig.loop);
+    video.loop = true;
     updateTrackLabel();
 }
 
@@ -2448,7 +2621,7 @@ function distortCell(col, row) {
         const dx = col - holeX;
         const dy = (row - holeY) * 1.8;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const gravMul = fxParams['hole-gravity'] ?? 1.0;
+        const gravMul = fxParam('hole-gravity', 1.0);
         const HORIZON = 2.1 + holePulse * 1.3;
         const STRENGTH = (2.0 + holePulse * 3.8) * gravMul;
 
@@ -2513,7 +2686,7 @@ function distortCell(col, row) {
 
     if (fx === 'melt' && meltColSpeeds && col < meltColSpeeds.length) {
         const elapsed = performance.now() - meltStartTime;
-        const drift = meltColSpeeds[col] * elapsed * (fxParams['melt-speed'] ?? 1.0) + meltColPhase[col];
+        const drift = meltColSpeeds[col] * elapsed * fxParam('melt-speed', 1.0) + meltColPhase[col];
         const driftRow = Math.floor(drift);
         const wobble = Math.sin((row * 0.28 + drift * 0.08) * Math.PI) * 1.8;
         const srcRow = ((row - driftRow) % gridRows + gridRows) % gridRows;
@@ -2525,7 +2698,7 @@ function distortCell(col, row) {
         const nx = (col / (gridCols - 1)) * 2 - 1;
         const ny = (row / (gridRows - 1)) * 2 - 1;
         const r2 = nx * nx + ny * ny;
-        const k = fxParams['lens-strength'] ?? 0.45;
+        const k = fxParam('lens-strength', 0.45);
         const d = 1 + k * r2;
         const sx = (nx / d + 1) * (gridCols - 1) / 2;
         const sy = (ny / d + 1) * (gridRows - 1) / 2;
@@ -2543,7 +2716,7 @@ function distortCell(col, row) {
         const dy = row - cy;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const t = performance.now() * 0.0003;
-        const twistMul = fxParams['swirl-twist'] ?? 1.0;
+        const twistMul = fxParam('swirl-twist', 1.0);
         const theta = dist * 0.12 * twistMul + t;
         const cos = Math.cos(theta);
         const sin = Math.sin(theta);
@@ -2586,8 +2759,8 @@ function distortCell(col, row) {
             const wave = (wSample - 128) / 128; // −1 … +1
 
             if (fx === 'soundwave') {
-                const ampMul = fxParams['wave-amplitude'] ?? 2.0;
-                const shimmerMul = fxParams['wave-shimmer'] ?? 1.4;
+                const ampMul = fxParam('wave-amplitude', 2.0);
+                const shimmerMul = fxParam('wave-shimmer', 1.4);
                 const amplitude = (4 + audioRms * 56) * ampMul;
                 const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + wave * amplitude)));
                 const deriv = (audioWaveform[Math.min(audioWaveform.length - 1, i1 + 1)] - audioWaveform[i0]) / 256;
@@ -2606,7 +2779,7 @@ function distortCell(col, row) {
             const binIdx = Math.floor((1 - row / Math.max(1, gridRows - 1)) * Math.min(audioFreqData.length - 1, 80));
             const amp = audioFreqData[binIdx] / 255;
             const dir = Math.sin(row * 0.8) >= 0 ? 1 : -1;
-            const tearMul = fxParams['spectra-tear'] ?? 1.3;
+            const tearMul = fxParam('spectra-tear', 1.3);
             const maxShift = (4 + amp * 20 + audioRms * 14) * tearMul;
             const shift = Math.round(dir * amp * maxShift);
             const srcCol = Math.max(0, Math.min(gridCols - 1, col + shift));
@@ -2643,7 +2816,7 @@ function processFrame(now) {
     }
     if (fxNow === 'pulse-clip') {
         const base = 42;
-        const breathMul = fxParams['pulse-breath'] ?? 1.3;
+        const breathMul = fxParam('pulse-breath', 1.3);
         const pct = base + (audioRms * 50 + audioBass * 18) * breathMul;
         container.style.clipPath =
             `ellipse(${Math.min(pct, 92).toFixed(1)}% ${Math.min(pct * 0.72, 68).toFixed(1)}% at 50% 50%)`;
@@ -2770,11 +2943,13 @@ async function startStream() {
         if (effectiveFx() === 'melt') initMelt();
         if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
         startFrameLoop();
+        updateTransportUI();
     } catch (err) {
         statusEl.textContent = 'Playback error: ' + err.message;
         statusEl.style.color = '#ff0000';
         overlay.classList.remove('hidden');
         state = 'IDLE';
+        updateTransportUI();
     }
 }
 
@@ -2794,6 +2969,7 @@ function finishStream() {
         copyStatusTimer = null;
     }
     updateCopyFrameButton();
+    updateTransportUI();
 }
 
 async function restartWithMode() {
@@ -2830,6 +3006,7 @@ async function restartWithMode() {
 }
 
 function setPreferPixel(usePixel, { reconnect = false } = {}) {
+    stopDemoMode();
     preferPixel = usePixel;
     pixelMode = usePixel;
     sessionStorage.setItem('asciiline-pixel', usePixel ? '1' : '0');
@@ -2857,6 +3034,14 @@ function pointerToGrid(clientX, clientY) {
     return { col, row };
 }
 
+function advanceFxPreset(delta) {
+    const ids = getVisiblePresetIds();
+    if (!ids.length) return;
+    const idx = ids.indexOf(activeFx);
+    const next = idx < 0 ? ids[0] : ids[(idx + delta + ids.length) % ids.length];
+    applyFx(next);
+}
+
 // ── EVENT LISTENERS ───────────────────────────────────────
 
 overlay.addEventListener('click', (e) => {
@@ -2871,8 +3056,8 @@ container.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#play-overlay')) return;
     const { col, row } = pointerToGrid(e.clientX, e.clientY);
     if (col < 0 || col >= gridCols || row < 0 || row >= gridRows) return;
-    const sizeMul  = fxParams['ripple-size']  ?? 1.0;
-    const speedMul = fxParams['ripple-speed'] ?? 1.0;
+    const sizeMul  = fxParam('ripple-size', 1.0);
+    const speedMul = fxParam('ripple-speed', 1.0);
     fireRippleAt(col, row, performance.now(), {
         width: 1.8 * sizeMul,
         speed: 0.12 * speedMul,
@@ -2884,8 +3069,111 @@ container.addEventListener('pointerdown', (e) => {
 if (volumeSlider) {
     volumeSlider.addEventListener('input', () => {
         video.volume = parseFloat(volumeSlider.value);
+        if (parseFloat(volumeSlider.value) > 0) {
+            lastVolume = parseFloat(volumeSlider.value);
+        }
     });
 }
+
+if (volLabel && volumeSlider) {
+    volLabel.style.cursor = 'pointer';
+    volLabel.title = 'Click to mute/unmute';
+    volLabel.addEventListener('click', () => {
+        const v = parseFloat(volumeSlider.value);
+        if (v > 0) {
+            lastVolume = v;
+            volumeSlider.value = '0';
+        } else {
+            volumeSlider.value = String(lastVolume);
+        }
+        video.volume = parseFloat(volumeSlider.value);
+    });
+}
+
+if (transportPlayBtn) {
+    transportPlayBtn.addEventListener('click', () => togglePlayback());
+}
+
+if (seekSlider) {
+    seekSlider.addEventListener('pointerdown', () => { seekDragging = true; });
+    seekSlider.addEventListener('pointerup', () => { seekDragging = false; });
+    seekSlider.addEventListener('input', () => {
+        if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+        video.currentTime = (parseInt(seekSlider.value, 10) / 1000) * video.duration;
+        updateTransportUI();
+    });
+}
+
+video.addEventListener('timeupdate', () => {
+    if (!seekDragging) updateTransportUI();
+});
+video.addEventListener('loadedmetadata', updateTransportUI);
+video.addEventListener('durationchange', updateTransportUI);
+
+if (fullscreenBtn) {
+    fullscreenBtn.addEventListener('click', () => {
+        const pane = document.querySelector('.studio-canvas-pane');
+        if (!document.fullscreenElement) {
+            pane?.requestFullscreen?.();
+        } else {
+            document.exitFullscreen?.();
+        }
+    });
+}
+
+if (demoToggleBtn) {
+    demoToggleBtn.addEventListener('click', () => {
+        if (demoEnabled) stopDemoMode();
+        else startDemoMode();
+    });
+}
+
+if (catFilterEl) {
+    catFilterEl.addEventListener('click', (e) => {
+        const pill = e.target.closest('.fx-cat-pill');
+        if (!pill) return;
+        const cat = pill.dataset.cat;
+        if (cat === 'all') {
+            categoryFilter = new Set(ALL_CATEGORY_IDS);
+        } else if (cat === 'none') {
+            categoryFilter = new Set();
+        } else if (categoryFilter.has(cat)) {
+            categoryFilter.delete(cat);
+        } else {
+            categoryFilter.add(cat);
+        }
+        saveCategoryFilter();
+        updateCategoryFilterUI();
+        if (demoEnabled) {
+            stopDemoMode();
+            startDemoMode();
+        }
+    });
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.target.closest('#about-panel') && !aboutPanel?.hidden) return;
+    const tag = e.target.tagName;
+    if (tag === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (tag === 'INPUT' && e.target.type !== 'range') return;
+
+    if (e.key === ' ' && !e.target.closest('button')) {
+        e.preventDefault();
+        togglePlayback();
+    } else if (e.key === 'ArrowLeft' && !e.target.closest('#fx-picker')) {
+        e.preventDefault();
+        jumpToTrack(-1);
+    } else if (e.key === 'ArrowRight' && !e.target.closest('#fx-picker')) {
+        e.preventDefault();
+        jumpToTrack(1);
+    } else if (e.key === '[') {
+        e.preventDefault();
+        advanceFxPreset(-1);
+    } else if (e.key === ']') {
+        e.preventDefault();
+        advanceFxPreset(1);
+    }
+});
 
 if (modeAsciiBtn) {
     modeAsciiBtn.addEventListener('click', () => {
@@ -2910,8 +3198,10 @@ async function jumpToTrack(delta) {
     playlistIndex = (playlistIndex + delta + siteConfig.playlist.length) % siteConfig.playlist.length;
     const entry = currentPlaylistEntry();
     video.src = entry.src;
+    video.loop = true;
     updateTrackLabel();
-    if (state === 'PLAYING') {
+    stopDemoMode();
+    if (state === 'PLAYING' || state === 'PAUSED') {
         finishStream();
         await startStream();
     }
@@ -2923,10 +3213,7 @@ if (trackNextBtn) trackNextBtn.addEventListener('click', () => jumpToTrack(1));
 video.addEventListener('ended', async () => {
     if (video.loop) return;
     if (state !== 'PLAYING') return;
-    if (siteConfig?.playlist && siteConfig.playlist.length > 1) {
-        advancePlaylist();
-        await startStream();
-    } else if (siteConfig?.loop) {
+    if (siteConfig?.loop) {
         video.currentTime = 0;
         video.play().catch(() => {});
     } else {
@@ -3010,7 +3297,9 @@ loadConfig()
     .then(() => {
         updateModeToggleUI();
         updateCopyFrameButton();
+        updateCategoryFilterUI();
         updateFxPickerUI();
+        updateTransportUI();
     })
     .catch((err) => {
         statusEl.textContent = err.message;
@@ -3021,11 +3310,9 @@ const playerObserver = new IntersectionObserver((entries) => {
     for (const entry of entries) {
         if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            if (state === 'PLAYING' && video.paused) {
-                video.play().catch(() => {});
-            }
+            if (state === 'PAUSED' && video.paused) resumePlayback();
         } else if (!entry.isIntersecting) {
-            if (state === 'PLAYING' && !video.paused) video.pause();
+            if (state === 'PLAYING' && !video.paused) pausePlayback();
         }
     }
 }, { threshold: [0, 0.4] });

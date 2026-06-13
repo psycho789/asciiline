@@ -16,6 +16,7 @@ __pycache__/
 !videos/fg.mp4
 !videos/jubeilunch.mp4
 !videos/jubeilunch_extended.mp4
+!videos/blow-the-whistle.mp4
 
 # Environment & IDE
 .env
