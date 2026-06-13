@@ -263,8 +263,6 @@ const FX_PRESETS = {
         hint: 'The audio waveform bends every column — louder = more warp. Bass beats fire ripples.',
         fullDesc: 'The audio waveform physically bends the image — each column shifts up or down based on the sound at that exact moment. Turn volume up, then use Warp strength, Shimmer, and Beat burst to dial in smooth waves vs hard rap-style bass blips.',
         action: 'Turn volume up — every sound physically warps the image.',
-        audioLevel: true,
-        waveformVis: true,
         controls: [
             { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 10.0, step: 0.1, def: 2.0 },
             { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 6.0, step: 0.1, def: 1.4 },
@@ -719,8 +717,10 @@ function pausePlayback() {
 
 function resumePlayback() {
     if (state !== 'PAUSED') return;
-    video.play().then(() => {
+    video.play().then(async () => {
         state = 'PLAYING';
+        initAudioAnalyser();
+        if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
         startFrameLoop();
         updateTransportUI();
     }).catch(() => {});
@@ -939,7 +939,7 @@ function applyFx(id, { cycleFont = false, fromDemo = false } = {}) {
     resetFxState();
     updateFxPickerUI();
 
-    if (AUDIO_REACTIVE_FX.has(id) && state === 'PLAYING') initAudioAnalyser();
+    if (state === 'PLAYING') initAudioAnalyser();
     if (id === 'tilt3d') initTilt3d();
     else removeTilt3d();
     if (id === 'hole') initHole();
@@ -1040,13 +1040,6 @@ function buildFxPanel(id) {
         barLabel.textContent = 'Turn volume up for full effect';
         fxPanelControls.appendChild(barWrap);
         fxPanelControls.appendChild(barLabel);
-        if (preset.waveformVis) {
-            const vis = document.createElement('canvas');
-            vis.id = 'fx-waveform-canvas';
-            vis.className = 'fx-waveform-vis';
-            vis.setAttribute('aria-label', 'Live waveform and beat burst preview');
-            fxPanelControls.appendChild(vis);
-        }
     }
 
     if (preset.controls) {
@@ -1090,7 +1083,7 @@ function buildFxPanel(id) {
     }
 
     const hasTunables = Boolean(
-        preset.controls?.length || preset.fontButtons || preset.audioLevel || preset.waveformVis,
+        preset.controls?.length || preset.fontButtons || preset.audioLevel,
     );
     if (fxPanelEmpty) {
         fxPanelEmpty.hidden = hasTunables;
@@ -1106,11 +1099,11 @@ function updateAudioLevelBar() {
 
 function updateWaveformVis() {
     const canvas = document.getElementById('fx-waveform-canvas');
-    if (!canvas || effectiveFx() !== 'soundwave' || !audioWaveform) return;
+    if (!canvas) return;
 
     const dpr = window.devicePixelRatio || 1;
     const cssW = canvas.clientWidth || 200;
-    const cssH = canvas.clientHeight || 36;
+    const cssH = canvas.clientHeight || 32;
     const w = Math.max(1, Math.floor(cssW * dpr));
     const h = Math.max(1, Math.floor(cssH * dpr));
     if (canvas.width !== w || canvas.height !== h) {
@@ -1130,6 +1123,9 @@ function updateWaveformVis() {
     vctx.moveTo(0, midY);
     vctx.lineTo(w, midY);
     vctx.stroke();
+
+    const live = analyser && state === 'PLAYING' && !video.paused && audioWaveform;
+    if (!live) return;
 
     const n = audioWaveform.length;
     const step = w / n;
@@ -1285,66 +1281,66 @@ const AUDIO_REACTIVE_FX = new Set(['resonate', 'soundwave', 'beatstrike', 'spect
 
 function updateAudioEnergy(now) {
     const fx = effectiveFx();
-    if (!analyser || !AUDIO_REACTIVE_FX.has(fx)) {
+    const playing = state === 'PLAYING' && !video.paused;
+
+    if (playing && analyser) {
+        if (!audioFreqData || audioFreqData.length !== analyser.frequencyBinCount)
+            audioFreqData = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(audioFreqData);
+
+        if (!audioWaveform || audioWaveform.length !== analyser.fftSize)
+            audioWaveform = new Uint8Array(analyser.fftSize);
+        analyser.getByteTimeDomainData(audioWaveform);
+
+        let bass = 0;
+        for (let i = 0; i < 10; i++) bass += audioFreqData[i];
+        audioBass = bass / (10 * 255);
+        audioEnergy = audioBass;
+
+        let rmsSum = 0;
+        for (let i = 0; i < audioWaveform.length; i++) {
+            const s = (audioWaveform[i] - 128) / 128;
+            rmsSum += s * s;
+        }
+        audioRms = Math.sqrt(rmsSum / audioWaveform.length);
+
+        if (!audioBeatHistory) audioBeatHistory = new Float32Array(44);
+        audioBeatHistory[audioBeatIdx] = audioBass;
+        audioBeatIdx = (audioBeatIdx + 1) % audioBeatHistory.length;
+        let histAvg = 0;
+        for (let i = 0; i < audioBeatHistory.length; i++) histAvg += audioBeatHistory[i];
+        histAvg /= audioBeatHistory.length;
+        const burstParam = fx === 'soundwave' ? fxParam('wave-burst', 0.35) : 0;
+        const beatGap = 260 - burstParam * 110;
+        const beatThresh = 0.18 - burstParam * 0.06;
+        audioBeat = audioBass > histAvg * (1.5 - burstParam * 0.25)
+            && audioBass > beatThresh
+            && (now - lastBeatAt) > beatGap;
+        if (audioBeat) lastBeatAt = now;
+
+        if (fx === 'soundwave') {
+            if (audioBeat) {
+                waveBurstEnv = Math.min(1, 0.5 + audioBass * 0.55);
+            }
+            const decay = 0.9 - burstParam * 0.28;
+            waveBurstEnv *= decay;
+        } else {
+            waveBurstEnv = 0;
+        }
+    } else {
         audioEnergy = 0;
         audioRms = 0;
         audioBass = 0;
         audioBeat = false;
         waveBurstEnv = 0;
-        container.classList.remove('fx-beat');
-        return;
-    }
-
-    // Frequency domain
-    if (!audioFreqData || audioFreqData.length !== analyser.frequencyBinCount)
-        audioFreqData = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(audioFreqData);
-
-    // Time domain (waveform)
-    if (!audioWaveform || audioWaveform.length !== analyser.fftSize)
-        audioWaveform = new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(audioWaveform);
-
-    // Bass energy (bins 0-9)
-    let bass = 0;
-    for (let i = 0; i < 10; i++) bass += audioFreqData[i];
-    audioBass = bass / (10 * 255);
-    audioEnergy = audioBass; // backward compat
-
-    // RMS from waveform
-    let rmsSum = 0;
-    for (let i = 0; i < audioWaveform.length; i++) {
-        const s = (audioWaveform[i] - 128) / 128;
-        rmsSum += s * s;
-    }
-    audioRms = Math.sqrt(rmsSum / audioWaveform.length);
-
-    // Beat detection — fire when bass spikes above local history average
-    if (!audioBeatHistory) audioBeatHistory = new Float32Array(44);
-    audioBeatHistory[audioBeatIdx] = audioBass;
-    audioBeatIdx = (audioBeatIdx + 1) % audioBeatHistory.length;
-    let histAvg = 0;
-    for (let i = 0; i < audioBeatHistory.length; i++) histAvg += audioBeatHistory[i];
-    histAvg /= audioBeatHistory.length;
-    const burstParam = fx === 'soundwave' ? fxParam('wave-burst', 0.35) : 0;
-    const beatGap = 260 - burstParam * 110;
-    const beatThresh = 0.18 - burstParam * 0.06;
-    audioBeat = audioBass > histAvg * (1.5 - burstParam * 0.25)
-        && audioBass > beatThresh
-        && (now - lastBeatAt) > beatGap;
-    if (audioBeat) lastBeatAt = now;
-
-    if (fx === 'soundwave') {
-        if (audioBeat) {
-            waveBurstEnv = Math.min(1, 0.5 + audioBass * 0.55);
-        }
-        const decay = 0.9 - burstParam * 0.28;
-        waveBurstEnv *= decay;
-    } else {
-        waveBurstEnv = 0;
     }
 
     updateWaveformVis();
+
+    if (!playing || !analyser || !AUDIO_REACTIVE_FX.has(fx)) {
+        container.classList.remove('fx-beat');
+        return;
+    }
 
     triglyphOffset = 2 + Math.floor(audioBass * 4 * fxParam('resonate-drive', 1.0));
     container.classList.toggle('fx-beat', audioBass > 0.55);
@@ -3050,7 +3046,7 @@ async function startStream() {
         video.volume = volumeSlider ? parseFloat(volumeSlider.value) : 1;
         await video.play();
         state = 'PLAYING';
-        if (AUDIO_REACTIVE_FX.has(effectiveFx())) initAudioAnalyser();
+        initAudioAnalyser();
         if (effectiveFx() === 'tilt3d') initTilt3d();
         if (effectiveFx() === 'hole') initHole();
         if (effectiveFx() === 'rend') initRend();
@@ -3084,6 +3080,7 @@ function finishStream() {
     }
     updateCopyFrameButton();
     updateTransportUI();
+    updateWaveformVis();
 }
 
 async function restartWithMode() {
@@ -3101,7 +3098,7 @@ async function restartWithMode() {
         if (wasPlaying) {
             await video.play();
             state = 'PLAYING';
-            if (AUDIO_REACTIVE_FX.has(effectiveFx())) initAudioAnalyser();
+            initAudioAnalyser();
             if (effectiveFx() === 'tilt3d') initTilt3d();
             else removeTilt3d();
             if (effectiveFx() === 'hole') initHole();
@@ -3330,6 +3327,7 @@ video.addEventListener('ended', async () => {
 });
 
 window.addEventListener('resize', () => {
+    updateWaveformVis();
     if (gridCols > 0 && gridRows > 0 && !pixelMode) {
         buildCanvas(gridCols, gridRows);
     } else if (pixelMode && gridCols > 0) {
@@ -3408,6 +3406,7 @@ loadConfig()
         updateCategoryFilterUI();
         updateFxPickerUI();
         updateTransportUI();
+        updateWaveformVis();
     })
     .catch((err) => {
         statusEl.textContent = err.message;
