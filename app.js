@@ -2535,7 +2535,7 @@ function statusLabel() {
 function updateFpsStatus(now) {
     frameCount++;
     if (now - lastFpsUpdate < 1000) return;
-    const target = video.playbackRate > 0 ? Math.round(30) : 24;
+    const target = TARGET_FPS;
     statusEl.textContent = `FPS: ${frameCount}/${target} | ${statusLabel()}`;
     frameCount = 0;
     lastFpsUpdate = now;
@@ -3028,6 +3028,8 @@ function processFrame(now) {
 
 // ── FRAME LOOP ────────────────────────────────────────────
 
+const TARGET_FPS = 60;
+
 function onVideoFrame(now, metadata) {
     if (state !== 'PLAYING') return;
     if (metadata && metadata.mediaTime === lastMediaTime) {
@@ -3041,12 +3043,6 @@ function onVideoFrame(now, metadata) {
 
 function onRafFrame(now) {
     if (state !== 'PLAYING') return;
-    const t = video.currentTime;
-    if (t === lastMediaTime) {
-        requestAnimationFrame(onRafFrame);
-        return;
-    }
-    lastMediaTime = t;
     processFrame(now);
     requestAnimationFrame(onRafFrame);
 }
@@ -3062,12 +3058,8 @@ function startFrameLoop() {
     lastMediaTime = -1;
     frameCount = 0;
     lastFpsUpdate = performance.now();
-    usingRvfc = typeof video.requestVideoFrameCallback === 'function';
-    if (usingRvfc) {
-        video.requestVideoFrameCallback(onVideoFrame);
-    } else {
-        requestAnimationFrame(onRafFrame);
-    }
+    usingRvfc = false;
+    requestAnimationFrame(onRafFrame);
 }
 
 function stopFrameLoop() {
