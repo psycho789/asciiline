@@ -264,7 +264,7 @@ const FX_PRESETS = {
         fullDesc: 'The audio waveform physically bends the image — each column shifts up or down based on the sound at that exact moment. Turn volume up, then use Warp strength, Shimmer, and Beat burst to dial in smooth waves vs hard rap-style bass blips.',
         action: 'Turn volume up — every sound physically warps the image.',
         controls: [
-            { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 10.0, step: 0.1, def: 2.0 },
+            { id: 'wave-amplitude', label: 'Warp strength', min: 0.5, max: 18.0, step: 0.1, def: 3.0 },
             { id: 'wave-shimmer',  label: 'Shimmer',       min: 0.0, max: 6.0, step: 0.1, def: 1.4 },
             { id: 'wave-burst',    label: 'Beat burst',    min: 0.0, max: 1.0, step: 0.05, def: 0.35 },
         ],
@@ -2850,7 +2850,7 @@ function distortCell(col, row) {
 
     // SOUNDWAVE — audio waveform bends rows; beat burst gates punchy bass hits
     if (fx === 'soundwave' && audioWaveform && audioWaveform.length >= 2) {
-        const ampMul = fxParam('wave-amplitude', 2.0);
+        const ampMul = fxParam('wave-amplitude', 3.0);
         const shimmerMul = fxParam('wave-shimmer', 1.4);
         const burst = fxParam('wave-burst', 0.35);
         const smooth = 1 - burst;
@@ -2870,7 +2870,8 @@ function distortCell(col, row) {
         }
 
         const gate = smooth * (0.25 + audioRms * 0.75) + punch * (0.85 + audioBass * 0.4);
-        const amplitude = (4 + audioRms * 56) * ampMul * gate;
+        const warpDrive = ampMul * (0.55 + ampMul * 0.45);
+        const amplitude = (10 + audioRms * 110) * warpDrive * gate;
         const srcRow = Math.max(0, Math.min(gridRows - 1, Math.round(row + wave * amplitude)));
         const deriv = (audioWaveform[i1] - audioWaveform[i0]) / 256;
         const shimmerGate = smooth * 0.55 + punch;
